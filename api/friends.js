@@ -86,6 +86,8 @@ router.post("/requestByUsername", async (req, res) => {
                 return;
             }
             
+            let targetId = result.rows[0].id;
+            
             //Make sure we're not already friends
             result = await db.query(`SELECT * FROM friends WHERE (friends.firstUser=$1 AND friends.secondUser=$2) OR (friends.firstUser=$2 OR friends.secondUser=$1)`, [
                 req.authUser.userId, targetId
@@ -98,7 +100,7 @@ router.post("/requestByUsername", async (req, res) => {
                 return;
             }
             
-            let targetId = result.rows[0].id;
+            //Add into friend requests
             await db.query(`INSERT INTO friendrequests(requester, target) VALUES($1, $2)`, [
                 req.authUser.userId, targetId
             ]);
@@ -118,7 +120,8 @@ router.post("/requestByUsername", async (req, res) => {
     }
 });
 
-router.post("/acceptByUsername", async (req, res) => {
+
+let respondToFriendRequest = async (req, res, accept) => {
     if (!req.body.username) {
         res.status(400).send({
             "error": "fields.missing"
@@ -154,19 +157,23 @@ router.post("/acceptByUsername", async (req, res) => {
                 return;
             }
             
-            //Make friends
+            //Remove from friend requests
             await db.query(`DELETE FROM friendRequests WHERE requester=$1 AND target=$2`, [
                 req.authUser.userId, targetId
             ]);
-            await db.query(`INSERT INTO friends(firstUser, secondUser) VALUES($1, $2)`, [
-                req.authUser.userId, targetId
-            ]);
             
-            play.beam(targetId, {
-                system: true,
-                type: "friendRequestAccepted",
-                user: req.authUser.username
-            });
+            if (accept) {
+                //Make friends if we're accepting this request
+                await db.query(`INSERT INTO friends(firstUser, secondUser) VALUES($1, $2)`, [
+                    req.authUser.userId, targetId
+                ]);
+                
+                play.beam(targetId, {
+                    system: true,
+                    type: "friendRequestAccepted",
+                    user: req.authUser.username
+                });
+            }
             
             res.status(204).send();
         } catch (error) {
@@ -175,4 +182,12 @@ router.post("/acceptByUsername", async (req, res) => {
             res.status(500).send();
         }
     }
+}
+
+router.post("/acceptByUsername", async (req, res) => {
+    respondToFriendRequest(req, res, true);
+});
+
+router.post("/declineByUsername", async (req, res) => {
+    respondToFriendRequest(req, res, false);
 });
