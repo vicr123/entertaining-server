@@ -22,6 +22,10 @@ function initConfiguration() {
     //Initialize application configuration
     winston.log("verbose", "Loading application configuration...");
     
+    nconf.defaults({
+        "port": 3000,
+        "rootRedirect": "https://entertaining.games"
+    });
     nconf.argv();
     nconf.env();
     nconf.file("./config.json");
@@ -29,6 +33,9 @@ function initConfiguration() {
 
 function initExpress() {
     return new Promise((res, rej) => {
+        const port = nconf.get("port");
+        const rootRedirect = nconf.get("rootRedirect");
+        
         //Prepare Express
         expressWs(app);
         
@@ -38,15 +45,15 @@ function initExpress() {
         
         //Redirect all calls to /
         app.all("/*", function(req, res) {
-            res.redirect("https://entertaining.games/");
+            res.redirect(rootRedirect);
         });
         
-        server = app.listen(3000, err => {
+        server = app.listen(port, err => {
             if (err) {
                 winston.log("error", "Couldn't start the server");
                 rej(err);
             } else {
-                winston.log("info", "Server is running on port 3000");
+                winston.log("info", `Server is running on port ${port}`);
                 res();
             }
         });
