@@ -22,13 +22,13 @@ function initConfiguration() {
     //Initialize application configuration
     winston.log("verbose", "Loading application configuration...");
     
+    nconf.argv();
+    nconf.env();
+    nconf.file("./config.json");
     nconf.defaults({
         "port": 3000,
         "rootRedirect": "https://entertaining.games"
     });
-    nconf.argv();
-    nconf.env();
-    nconf.file("./config.json");
 }
 
 function initExpress() {
