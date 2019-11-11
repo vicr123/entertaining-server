@@ -45,7 +45,9 @@ class Play {
             this.#userId = userId;
             this.#openSocket = {
                 userId: userId,
-                socket: this
+                socket: this,
+                application: "",
+                applicationDisplayName: ""
             };
             openSockets.push(this.#openSocket);
             
@@ -87,6 +89,9 @@ class Play {
             //Start and hand over the websocket to this application
             let App = require(`.${applicationVersionDir}/index.js`);
             new App(ws, username, userId);
+            
+            this.#openSocket.application = object.application;
+            this.#openSocket.applicationDisplayName = App.displayName();
             
             //Send any interesting events over
             this.sendEvents();
@@ -146,11 +151,24 @@ class Play {
             }
         }
     }
+    
+    static onlineState(userId) {
+        for (let socket of openSockets) {
+            if (socket.userId === userId) {
+                return {
+                    applicationDisplayName: socket.applicationDisplayName,
+                    application: socket.application
+                };
+            }
+        }
+        return false;
+    }
 }
 
 module.exports = {
     play: function(ws) {
         new Play(ws);
     },
-    beam: Play.beam
+    beam: Play.beam,
+    onlineState: Play.onlineState
 };

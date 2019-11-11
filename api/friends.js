@@ -17,19 +17,24 @@ router.get("/", async (req, res) => {
             let results;
             
             //TODO: Build the list of friends
-            results = await db.query(`SELECT first.id AS firstId, SECOND.id AS secondId, first.username AS first, second.username AS second FROM users AS first, users AS second, friends WHERE friends.firstUser = first.id AND friends.secondUser = second.id AND (friends.firstUser=$1 OR friends.secondUser=$1)`, [
+            results = await db.query(`SELECT first.id AS firstid, second.id AS secondid, first.username AS first, second.username AS second FROM users AS first, users AS second, friends WHERE friends.firstUser = first.id AND friends.secondUser = second.id AND (friends.firstUser=$1 OR friends.secondUser=$1)`, [
                 req.authUser.userId
             ]);
             for (let row of results.rows) {
                 let username;
+                let userId;
                 if (row.firstId == req.authUser.userId) {
                     username = row.second;
+                    userId = row.secondid;
                 } else {
                     username = row.first;
+                    userId = row.firstid;
                 }
+                
                 friends.push({
                     username: username,
-                    status: "friend"
+                    status: "friend",
+                    onlineState: play.onlineState(userId)
                 });
             }
             

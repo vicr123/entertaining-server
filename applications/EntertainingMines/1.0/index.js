@@ -18,6 +18,9 @@ class Game {
         winston.log('verbose', `Entertaining Mines client initialized for user ${username} (${userId})`);
     }
     
+    static displayName() {
+        return "Entertaining Mines";
+    }
 }
 
 module.exports = Game;
