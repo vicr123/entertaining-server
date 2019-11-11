@@ -1,0 +1,29 @@
+{
+  "name": "entertaining-server",
+  "version": "1.0.0",
+  "description": "Server for Entertaining Games",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vicr123/entertaining-server.git"
+  },
+  "author": "Victor Tran <vicr12345@gmail.com>",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/vicr123/entertaining-server/issues"
+  },
+  "homepage": "https://github.com/vicr123/entertaining-server#readme",
+  "dependencies": {
+    "bcrypt": "^3.0.6",
+    "express": "^4.17.1",
+    "express-ws": "^4.0.0",
+    "nconf": "^0.10.0",
+    "pg": "^7.12.1",
+    "pg-cursor": "^2.0.1",
+    "winston": "^3.2.1"
+  }
+}
