@@ -15,9 +15,16 @@ class Play {
     #userId;
     #openSocket;
     
+    #pingTimer;
+    #lastPingSeq;
+    #nextPingSeq;
+    
     constructor(ws) {
         this.#ws = ws;
         this.#openSocket = null;
+        this.#pingTimer = null;
+        this.#lastPingSeq = 0;
+        this.#nextPingSeq = 0;
         
         ws.sendObject = this.sendObject.bind(this);
         
@@ -98,6 +105,21 @@ class Play {
             
             //Send any interesting events over
             this.sendEvents();
+            
+            //Start the ping timer
+            this.#pingTimer = setInterval(() => {
+                //Send a ping
+                this.sendObject({
+                    "system": true,
+                    "type": "serverPing",
+                    "seq": this.#nextPingSeq
+                });
+                
+                if (this.#nextPingSeq - this.#lastPingSeq > 4) {
+                    //Assume we've disconnected
+                    this.#ws.close();
+                }
+            }, 10000);
         });
         
         ws.on("message", (message) => {
@@ -110,6 +132,8 @@ class Play {
                         type: "clientPingReply",
                         seq: object.seq
                     });
+                } else if (object.type === "serverPingReply") {
+                    this.#lastPingSeq = object.seq;
                 }
             } else {
                 ws.emit("jsonMessage", object);
@@ -119,6 +143,11 @@ class Play {
         ws.on("close", (closeCode) => {
             if (this.#openSocket) {
                 openSockets.splice(openSockets.indexOf(this.#openSocket, 1));
+            }
+            
+            if (this.#pingTimer) {
+                clearInterval(this.#pingTimer);
+                this.#pingTimer = null;
             }
         });
         
