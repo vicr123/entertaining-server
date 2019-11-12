@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
             let friends = [];
             let results;
             
-            //TODO: Build the list of friends
+            //Return all friends
             results = await db.query(`SELECT first.id AS firstid, second.id AS secondid, first.username AS first, second.username AS second FROM users AS first, users AS second, friends WHERE friends.firstUser = first.id AND friends.secondUser = second.id AND (friends.firstUser=$1 OR friends.secondUser=$1)`, [
                 req.authUser.userId
             ]);
@@ -80,10 +80,8 @@ router.post("/requestByUsername", async (req, res) => {
     } else {
         try {
             //Get the user that we want to be made friends with
-            let result = await db.query(`SELECT id FROM users WHERE username=$1`, [
-                req.body.username
-            ]);
-            if (result.rowCount == 0) {
+            let result = await db.userForUsername(req.body.username);
+            if (!result) {
                 //This user does not exist
                 res.status(400).send({
                     "error": "user.unknownTarget"
@@ -91,10 +89,10 @@ router.post("/requestByUsername", async (req, res) => {
                 return;
             }
             
-            let targetId = result.rows[0].id;
+            let targetId = result.userId;
             
             //Make sure we're not already friends
-            result = await db.query(`SELECT * FROM friends WHERE (friends.firstUser=$1 AND friends.secondUser=$2) OR (friends.firstUser=$2 OR friends.secondUser=$1)`, [
+            result = await db.query(`SELECT * FROM friends WHERE (friends.firstUser=$1 AND friends.secondUser=$2) OR (friends.firstUser=$2 AND friends.secondUser=$1)`, [
                 req.authUser.userId, targetId
             ]);
             if (result.rowCount != 0) {
@@ -138,10 +136,8 @@ let respondToFriendRequest = async (req, res, accept) => {
     } else {
         try {
             //Get the user that we want to be made friends with
-            let result = await db.query(`SELECT id FROM users WHERE username=$1`, [
-                req.body.username
-            ]);
-            if (result.rowCount == 0) {
+            let result = await db.userForUsername(req.body.username);
+            if (!result) {
                 //This user does not exist
                 res.status(400).send({
                     "error": "user.unknownTarget"
@@ -149,10 +145,20 @@ let respondToFriendRequest = async (req, res, accept) => {
                 return;
             }
             
+            let requesterId;
+            let targetId;
+            if (accept == "retract") {
+                //This is a retraction, so act as if the target declined
+                requesterId = req.authUser.userId;
+                targetId = result.userId;
+            } else {
+                requesterId = result.userId;
+                targetId = req.authUser.userId;
+            }
+            
             //Check if we've got an active request
-            let targetId = result.rows[0].id;
             result = await db.query(`SELECT * FROM friendRequests WHERE requester=$1 AND target=$2`, [
-                req.authUser.userId, targetId
+                requesterId, targetId
             ]);
             if (result.rowCount == 0) {
                 //There is no pending request
@@ -164,13 +170,13 @@ let respondToFriendRequest = async (req, res, accept) => {
             
             //Remove from friend requests
             await db.query(`DELETE FROM friendRequests WHERE requester=$1 AND target=$2`, [
-                req.authUser.userId, targetId
+                requesterId, targetId
             ]);
             
-            if (accept) {
+            if (accept == "accept") {
                 //Make friends if we're accepting this request
                 await db.query(`INSERT INTO friends(firstUser, secondUser) VALUES($1, $2)`, [
-                    req.authUser.userId, targetId
+                    requesterId, targetId
                 ]);
                 
                 play.beam(targetId, {
@@ -190,9 +196,61 @@ let respondToFriendRequest = async (req, res, accept) => {
 }
 
 router.post("/acceptByUsername", async (req, res) => {
-    respondToFriendRequest(req, res, true);
+    respondToFriendRequest(req, res, "accept");
 });
 
 router.post("/declineByUsername", async (req, res) => {
-    respondToFriendRequest(req, res, false);
+    respondToFriendRequest(req, res, "decline");
+});
+
+router.post("/retractByUsername", async (req, res) => {
+    respondToFriendRequest(req, res, "retract");
+});
+
+router.post("/removeByUsername", async (req, res) => {
+    if (!req.body.username) {
+        res.status(400).send({
+            "error": "fields.missing"
+        });
+    } else if (!req.authUser) {
+        res.status(401).send({
+            "error":" authentication.invalid"
+        });
+    } else {
+        try {
+            //Get the user to remove
+            let result = await db.userForUsername(req.body.username);
+            if (!result) {
+                //This user does not exist
+                res.status(400).send({
+                    "error": "user.unknownTarget"
+                });
+                return;
+            }
+            
+            //Check if there exists a friend relation
+            let targetId = result.userId;
+            result = await db.query(`SELECT * FROM friends WHERE (firstUser=$1 AND secondUser=$2) OR (firstUser=$2 AND secondUser=$1)`, [
+                req.authUser.userId, targetId
+            ]);
+            if (result.rowCount == 0) {
+                //There is no pending request
+                res.status(400).send({
+                    "error": "friends.notFriends"
+                });
+                return;
+            }
+            
+            //Remove the friend relation
+            await db.query(`DELETE FROM friends WHERE (firstUser=$1 AND secondUser=$2) OR (firstUser=$2 AND secondUser=$1)`, [
+                req.authUser.userId, targetId
+            ]);
+            
+            res.status(204).send();
+        } catch (error) {
+            //Internal Server Error
+            winston.log("error", error.message);
+            res.status(500).send();
+        } 
+    }
 });

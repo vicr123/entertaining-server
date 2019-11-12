@@ -103,6 +103,21 @@ class Database {
             userId: row.id
         };
     }
+    
+    async userForUsername(username) {
+        let response = await this.query("SELECT id, username FROM users WHERE username=$1", [
+            username
+        ]);
+        if (response.rowCount === 0) {
+            return null;
+        }
+        
+        let row = response.rows[0];
+        return {
+            username: row.username,
+            userId: row.id
+        };
+    }
 }
 
 module.exports = new Database();
