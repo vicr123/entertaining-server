@@ -129,7 +129,7 @@ class Database {
         for (let row of results.rows) {
             let username;
             let peerId;
-            if (row.firstId == userId) {
+            if (row.firstid == userId) {
                 username = row.second;
                 peerId = row.secondid;
             } else {
