@@ -167,7 +167,7 @@ let respondToFriendRequest = async (req, res, accept) => {
                     requesterId, targetId
                 ]);
                 
-                play.beam(targetId, {
+                play.beam(requesterId, {
                     system: true,
                     type: "friendRequestAccepted",
                     user: req.authUser.username
