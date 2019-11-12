@@ -118,6 +118,32 @@ class Database {
             userId: row.id
         };
     }
+    
+    async friendsForUserId(userId) {
+        //Return all friends
+        let friends = [];
+        
+        let results = await this.query(`SELECT first.id AS firstid, second.id AS secondid, first.username AS first, second.username AS second FROM users AS first, users AS second, friends WHERE friends.firstUser = first.id AND friends.secondUser = second.id AND (friends.firstUser=$1 OR friends.secondUser=$1)`, [
+            userId
+        ]);
+        for (let row of results.rows) {
+            let username;
+            let userId;
+            if (row.firstId == userId) {
+                username = row.second;
+                userId = row.secondid;
+            } else {
+                username = row.first;
+                userId = row.firstid;
+            }
+            
+            friends.push({
+                username: username,
+                userId: userId
+            });
+        }
+        return friends;
+    }
 }
 
 module.exports = new Database();

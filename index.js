@@ -7,15 +7,23 @@ const authMiddleware = require("./auth-middleware");
 const app = express();
 
 let server = null;
+let tearingDown = false;
 
 function teardown() {
-    winston.log("info", "Stopping server...");
-    server.close();
-    
-    winston.log("info", "Giving all websockets 5 seconds to close...");
-    setTimeout(() => {
+    if (tearingDown) {
+        //Kill the process immediately
         process.exit(0);
-    }, 5000);
+    } else {
+        winston.log("info", "Stopping server...");
+        server.close();
+        
+        winston.log("info", "Giving all websockets 5 seconds to close...");
+        setTimeout(() => {
+            process.exit(0);
+        }, 5000);
+        
+        tearingDown = true;
+    }
 }
 
 function initConfiguration() {

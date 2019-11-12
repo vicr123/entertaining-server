@@ -17,24 +17,12 @@ router.get("/", async (req, res) => {
             let results;
             
             //Return all friends
-            results = await db.query(`SELECT first.id AS firstid, second.id AS secondid, first.username AS first, second.username AS second FROM users AS first, users AS second, friends WHERE friends.firstUser = first.id AND friends.secondUser = second.id AND (friends.firstUser=$1 OR friends.secondUser=$1)`, [
-                req.authUser.userId
-            ]);
-            for (let row of results.rows) {
-                let username;
-                let userId;
-                if (row.firstId == req.authUser.userId) {
-                    username = row.second;
-                    userId = row.secondid;
-                } else {
-                    username = row.first;
-                    userId = row.firstid;
-                }
-                
+            results = await db.friendsForUserId(req.authUser.userId);
+            for (let r of results) {
                 friends.push({
-                    username: username,
+                    username: r.username,
                     status: "friend",
-                    onlineState: play.onlineState(userId)
+                    onlineState: play.onlineState(r.userId)
                 });
             }
             

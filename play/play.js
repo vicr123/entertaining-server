@@ -18,6 +18,9 @@ class Play {
     constructor(ws) {
         this.#ws = ws;
         this.#openSocket = null;
+        
+        ws.sendObject = this.sendObject.bind(this);
+        
         winston.log('silly', `Entertaining Games client created`);
         
         ws.once('message', async (message) => {
@@ -108,6 +111,8 @@ class Play {
                         seq: object.seq
                     });
                 }
+            } else {
+                ws.emit("jsonMessage", object);
             }
         });
         
@@ -126,7 +131,7 @@ class Play {
     }
     
     sendObject(object) {
-        this.#ws.send(JSON.stringify(object));
+        this.#ws.send(JSON.stringify(object, null, 0));
     }
     
     async sendEvents() {
