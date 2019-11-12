@@ -128,18 +128,18 @@ class Database {
         ]);
         for (let row of results.rows) {
             let username;
-            let userId;
+            let peerId;
             if (row.firstId == userId) {
                 username = row.second;
-                userId = row.secondid;
+                peerId = row.secondid;
             } else {
                 username = row.first;
-                userId = row.firstid;
+                peerId = row.firstid;
             }
             
             friends.push({
                 username: username,
-                userId: userId
+                userId: peerId
             });
         }
         return friends;
