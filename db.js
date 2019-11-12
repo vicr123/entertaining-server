@@ -90,7 +90,7 @@ class Database {
     }
     
     async userForToken(token) {
-        let response = await this.query("SELECT users.id, users.username FROM users NATURAL JOIN tokens WHERE tokens.token=$1", [
+        let response = await this.query("SELECT * FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
             token
         ]);
         if (response.rowCount === 0) {
