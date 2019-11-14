@@ -171,7 +171,11 @@ class Play {
     }
     
     sendObject(object) {
-        this.#ws.send(JSON.stringify(object, null, 0));
+        if (this.#ws.readyState == 1) {
+            this.#ws.send(JSON.stringify(object, null, 0));
+        } else {
+            winston.log("warning", `Tried to send data to a closed WebSocket for user ${this.#userId}`);
+        }
     }
     
     async sendEvents() {
