@@ -9,7 +9,7 @@ module.exports = router;
 router.get("/", async (req, res) => {
     if (!req.authUser) {
         res.status(401).send({
-            "error":" authentication.invalid"
+            "error": "authentication.invalid"
         });
     } else {
         try {
@@ -63,7 +63,7 @@ router.post("/requestByUsername", async (req, res) => {
         });
     } else if (!req.authUser) {
         res.status(401).send({
-            "error":" authentication.invalid"
+            "error": "authentication.invalid"
         });
     } else {
         try {
@@ -119,7 +119,7 @@ let respondToFriendRequest = async (req, res, accept) => {
         });
     } else if (!req.authUser) {
         res.status(401).send({
-            "error":" authentication.invalid"
+            "error": "authentication.invalid"
         });
     } else {
         try {
@@ -202,7 +202,7 @@ router.post("/removeByUsername", async (req, res) => {
         });
     } else if (!req.authUser) {
         res.status(401).send({
-            "error":" authentication.invalid"
+            "error": "authentication.invalid"
         });
     } else {
         try {

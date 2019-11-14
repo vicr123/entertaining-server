@@ -43,6 +43,19 @@ class Database {
                                     email TEXT UNIQUE,
                                     verified BOOLEAN DEFAULT false
                                 )`);
+            await client.query(`CREATE TABLE IF NOT EXISTS otp(
+                                    userId INTEGER PRIMARY KEY,
+                                    otpKey TEXT,
+                                    enabled BOOLEAN DEFAULT false,
+                                    CONSTRAINT fk_tokens_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+                                )`);
+            await client.query(`CREATE TABLE IF NOT EXISTS otpBackup(
+                                    userId INTEGER,
+                                    backupKey TEXT,
+                                    used BOOLEAN DEFAULT false,
+                                    CONSTRAINT pk_otpBackup PRIMARY KEY(userId, backupKey),
+                                    CONSTRAINT fk_tokens_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+                                )`);
             await client.query(`CREATE TABLE IF NOT EXISTS tokens(
                                     userId INTEGER,
                                     token TEXT UNIQUE,

@@ -115,6 +115,8 @@ class Play {
                     "seq": this.#nextPingSeq
                 });
                 
+                this.#nextPingSeq++;
+                
                 if (this.#nextPingSeq - this.#lastPingSeq > 4) {
                     //Assume we've disconnected
                     this.#ws.close();
