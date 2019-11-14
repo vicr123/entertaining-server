@@ -54,7 +54,7 @@ async function verifyPassword(userId, password) {
 
 async function verifyOtp(userId, otpToken) {
     
-    let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
+    let result = await db.query("SELECT otpKey FROM otp WHERE userId=$1 AND enabled=true", [
         userId
     ]);
     if (result.rowCount === 0) {

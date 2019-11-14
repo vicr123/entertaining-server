@@ -143,15 +143,13 @@ class Play {
         });
         
         ws.on("close", (closeCode) => {
-            if (this.#openSocket) {
-                openSockets.splice(openSockets.indexOf(this.#openSocket, 1));
-            }
-            
-            if (this.#pingTimer) {
-                clearInterval(this.#pingTimer);
-                this.#pingTimer = null;
-            }
+            this.close();
         });
+        
+        ws.on("error", (error) => {
+            winston.log("error", error);
+            this.close();
+        })
         
         process.on("SIGINT", () => {
             ws.close(1001); //Going Away
@@ -159,6 +157,17 @@ class Play {
         process.on("SIGTERM", () => {
             ws.close(1001); //Going Away
         });
+    }
+    
+    close() {
+        if (this.#openSocket) {
+            openSockets.splice(openSockets.indexOf(this.#openSocket, 1));
+        }
+        
+        if (this.#pingTimer) {
+            clearInterval(this.#pingTimer);
+            this.#pingTimer = null;
+        }
     }
     
     sendObject(object) {
