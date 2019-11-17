@@ -1,6 +1,10 @@
 const pg = require('pg');
+const pgError = require('pg-error');
 const nconf = require('nconf');
 const winston = require('winston');
+
+pg.Connection.prototype.parseE = pgError.parse;
+pg.Connection.prototype.parseN = pgError.parse;
 
 class Database {
     #pool;
@@ -10,6 +14,23 @@ class Database {
         nconf.required(["database"]);
         
         const pool = new pg.Pool(nconf.get("database"));
+        pool.on('connect', client => {
+            let connection = client.connection;
+            
+            connection.on('PgError', err => {
+                switch (err.severity) {
+                    case "ERROR":
+                    case "FATAL":
+                    case "PANIC":
+                        return connection.emit("error", err);
+                    default:
+                        return connection.emit("notice", err);
+                }
+            });
+            client.on('error', err => {
+                winston.log("error", `Database: ${err.code} ${err.condition} - ${err.message}`);
+            });
+        });
         pool.on('error', (err, client) => {
             winston.log("error", err);
         });

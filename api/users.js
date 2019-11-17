@@ -83,6 +83,19 @@ async function verifyOtp(userId, otpToken) {
     return false;
 }
 
+async function checkUsername(username) {
+    //Ensure the username is within limits
+    if (username.length > 32) {
+        return "username.tooLong";
+    }
+    
+    if (!/^[A-Za-z0-9 ]+$/.test(username)) {
+        return "username.bad";
+    }
+    
+    return "ok";
+}
+
 router.post("/create", async function(req, res) {
     if (!req.body.username || !req.body.password || !req.body.email) {
         res.status(400).send({
@@ -92,6 +105,14 @@ router.post("/create", async function(req, res) {
         try {
             let username = req.body.username.trim();
             let email = req.body.email.trim();
+            
+            let usernameOk = await checkUsername(username);
+            if (usernameOk !== "ok") {
+                res.status(401).send({
+                    "error": usernameOk
+                });
+                return;
+            }
                         
             //Hash and salt the password
             let passwordHash = await bcrypt.hash(req.body.password, nconf.get("saltRounds"));
@@ -110,8 +131,21 @@ router.post("/create", async function(req, res) {
                 "id": id
             });
         } catch (error) {
+            if (error.code === "23505") { //unique_violation
+                if (error.constraint === "users_username_key") {
+                    res.status(409).send({
+                        "error": "username.taken"
+                    });
+                    return;
+                } else if (error.constraint === "users_email_key") {
+                    res.status(409).send({
+                        "error": "email.taken"
+                    });
+                    return;
+                }
+            }
+            
             //Internal Server Error
-            winston.log("error", error.message);
             res.status(500).send();
         }
     }
@@ -169,6 +203,59 @@ router.post("/token", async function(req, res) {
         } catch (error) {
             //Internal Server Error
             winston.log("error", error.message);
+            res.status(500).send();
+        }
+    }
+});
+
+router.post("/changeUsername", async function(req, res) {
+    if (!req.body.password || !req.body.username) {
+        res.status(400).send({
+            "error": "fields.missing"
+        });
+    } else if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            //Ensure the password is correct
+            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+            if (isPasswordCorrect !== "ok") {
+                res.status(401).send({
+                    "error": "authentication.incorrect"
+                });
+                return;
+            }
+            
+            let username = req.body.username.trim();
+            
+            //Ensure the username is okay
+            let usernameOk = await checkUsername(username);
+            if (usernameOk !== "ok") {
+                res.status(401).send({
+                    "error": usernameOk
+                });
+                return;
+            }
+            
+            //Update the database
+            await db.query("UPDATE users SET username=$2 WHERE id=$1", [
+                req.authUser.userId, username
+            ]);
+            
+            res.status(204).send();
+        } catch (error) {
+            if (error.code === "23505") { //unique_violation
+                if (error.constraint === "users_username_key") {
+                    res.status(409).send({
+                        "error": "username.taken"
+                    });
+                    return;
+                }
+            }
+            
+            //Internal Server Error
             res.status(500).send();
         }
     }
@@ -350,7 +437,7 @@ router.post("/otp/disable", async function(req, res) {
                 return;
             }
             
-            //Make sure OTP tokens are currently enabled
+            //Make sure OTP tokens are currently disabled
             let row = result.rows[0];
             if (!row.enabled) {
                 res.status(401).send({
