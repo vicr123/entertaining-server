@@ -5,7 +5,8 @@ const db = require('../db');
 const nconf = require('nconf');
 const winston = require('winston');
 const otplib = require('otplib');
-
+const mail = require('../mail');
+const moment = require('moment');
 
 nconf.defaults({
     "saltRounds": 12,
@@ -115,6 +116,32 @@ async function mixPassword(password) {
     return passwordHash;
 }
 
+async function sendVerificationMail(userId) {
+    let result = await db.query("SELECT username, email FROM users WHERE id=$1", [
+        userId
+    ]);
+    if (result.rowCount === 0) {
+        return;
+    }
+    
+    let row = result.rows[0];
+    
+    let expiry = moment.utc().add(1, 'days').unix();
+    let verification = "" + Math.floor(Math.random() * 900000 + 100000);
+    
+    await db.query("DELETE FROM verifications WHERE userId=$1", [
+        userId
+    ]);
+    await db.query("INSERT INTO verifications(userId, verificationString, expiry) VALUES($1, $2, $3)", [
+        userId, verification, expiry
+    ]);
+    
+    await mail.sendTemplate(row.email, "verifyEmail", {
+        name: row.username,
+        code: verification
+    });
+}
+
 router.post("/create", async function(req, res) {
     if (!req.body.username || !req.body.password || !req.body.email) {
         res.status(400).send({
@@ -144,6 +171,9 @@ router.post("/create", async function(req, res) {
             
             //Get the token
             let token = await generateTokenForUser(id);
+            
+            //Ask the user to verify their account
+            sendVerificationMail(id);
             
             await res.status(200).send({
                 "token": token,
@@ -330,6 +360,64 @@ router.post("/changePassword", async function(req, res) {
             //Clear out all tokens except this one
             await db.query("DELETE FROM tokens WHERE userId=$1 AND NOT token=$2", [
                 req.authUser.userId, req.authUserToken
+            ]);
+            
+            res.status(204).send();
+        } catch (error) {
+            //Internal Server Error
+            res.status(500).send();
+        }
+    }
+});
+
+router.post("/resendVerification", async function(req, res) {
+    if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            //Ask the user to verify their account
+            sendVerificationMail(req.authUser.userId);
+            
+            res.status(204).send();
+        } catch (error) {
+            //Internal Server Error
+            res.status(500).send();
+        }
+    }
+});
+
+router.post("/verifyEmail", async function(req, res) {
+    if (!req.body.verificationCode) {
+        res.status(400).send({
+            "error": "fields.missing"
+        });
+    } else if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            let currentDate = moment.utc().unix();
+            
+            //Check if the verification code is correct
+            let result = await db.query("SELECT * FROM verifications WHERE userId=$1 AND verificationString=$2 AND expiry>$3", [
+                req.authUser.userId, "" + req.body.verificationCode, currentDate
+            ]);
+            if (result.rowCount === 0) {
+                res.status(400).send({
+                    "error": "verification.invalid"
+                });
+                return;
+            }
+            
+            //Verify the email address
+            await db.query("DELETE FROM verifications WHERE userId=$1", [
+                req.authUser.userId
+            ]);
+            await db.query("UPDATE users SET verified=true WHERE id=$1", [
+                req.authUser.userId
             ]);
             
             res.status(204).send();

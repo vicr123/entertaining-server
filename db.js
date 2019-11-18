@@ -12,7 +12,8 @@ function userObjectForRow(row) {
         username: row.username,
         userId: row.id,
         email: row.email,
-        gravHash: crypto.createHash('md5').update(row.email.trim().toLowerCase()).digest("hex")
+        gravHash: crypto.createHash('md5').update(row.email.trim().toLowerCase()).digest("hex"),
+        verified: row.verified
     };
 }
 
@@ -95,7 +96,8 @@ class Database {
                                 )`);
             await client.query(`CREATE TABLE IF NOT EXISTS verifications(
                                     userId INTEGER,
-                                    verificationString TEXT UNIQUE,
+                                    verificationString TEXT UNIQUE NOT NULL,
+                                    expiry BIGINT NOT NULL,
                                     CONSTRAINT pk_verifications PRIMARY KEY(userId),
                                     CONSTRAINT fk_verifications_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
                                 )`);
@@ -134,7 +136,7 @@ class Database {
     }
     
     async userForToken(token) {
-        let response = await this.query("SELECT id, username, email FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
+        let response = await this.query("SELECT id, username, email, verified FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
             token
         ]);
         if (response.rowCount === 0) {
@@ -146,7 +148,7 @@ class Database {
     }
     
     async userForUsername(username) {
-        let response = await this.query("SELECT id, username, email FROM users WHERE username=$1", [
+        let response = await this.query("SELECT id, username, email, verified FROM users WHERE username=$1", [
             username
         ]);
         if (response.rowCount === 0) {

@@ -1,0 +1,84 @@
+<html>
+    <head>
+        <style>
+            @font-face {
+                font-family: 'Contemporary';
+                font-style: normal;
+                font-weight: 400;
+                src: local('Contemporary'), local('Contemporary-Regular'), url('https://vicr123.com/typeface/Contemporary-Regular.ttf');
+            }
+            
+            body {
+                font-family: "Contemporary";
+                
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            div.container {
+                border: 1px solid white;
+                background-color: rgb(40, 40, 40);
+                color: white;
+                max-width: 600px;
+            }
+            
+            h1.header {
+                margin: 0px;
+                padding: 9px;
+                font-weight: normal;
+                font-size: 15pt;
+                border-bottom: 1px solid white;
+            }
+            
+            div.content {
+                padding: 9px;
+            }
+            
+            p {
+                margin: 0px;
+            }
+            
+            footer {
+                padding-top: 9px;
+                font-size: 8pt;
+            }
+        </style>
+        <style>
+            div.code {
+                text-align: center;
+                font-size: 20pt;
+                padding-top: 9px;
+                padding-bottom: 9px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1 class="header">
+                Verify your email for Entertaining Games
+            </h1>
+            <div class="content">
+                <p>Hi ${name}!</p>
+                <p>&nbsp;</p>
+                <p>Thanks for signing up for an Entertaining Games account.</p>
+                <p>&nbsp;</p>
+                <p>The verification code you'll need to enter to verify your email is shown below.</p>
+                <div class="code">
+                    ${code}
+                </div>
+                <p>Go to the Accounts screen in any Entertaining Games application and enter this code in to verify your email.</p>
+                <p>&nbsp;</p>
+                <p>Be speedy though, this verification code will expire in 24 hours. You can request a new verification code in the Accounts screen in any Entertaining Games application.</p>
+                <p>&nbsp;</p>
+                <p>Thanks for signing up for an Entertaining Games account!</p>
+                <p>&nbsp;</p>
+                <p>Have fun,</p>
+                <p>- Entertaining Games Team</p>
+            </div>
+        </div>
+        <footer>
+            This email not for you? Reply to this message and we'll sort it out. Thanks!
+        </footer>
+    </body>
+</html>
