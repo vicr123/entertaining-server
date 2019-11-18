@@ -42,14 +42,26 @@ async function verifyPassword(userId, password) {
     }
     
     let hashedPassword = response.rows[0].password;
+    let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
     
-    //Verify the password
-    let isPasswordCorrect = await bcrypt.compare(password, hashedPassword);
+    //Verify the sha256 hashed password
+    let isPasswordCorrect = await bcrypt.compare(sha256, hashedPassword);
     if (isPasswordCorrect) {
         return "ok";
-    } else {
-        return "no";
     }
+    
+    //Verify the password
+    isPasswordCorrect = await bcrypt.compare(password, hashedPassword);
+    if (isPasswordCorrect) {
+        //Update the password
+        let newPassword = await mixPassword(password);
+        await db.query("UPDATE users SET password=$2 WHERE id=$1", [
+            userId, newPassword
+        ]);
+        return "ok";
+    }
+    
+    return "no";
 }
 
 async function verifyOtp(userId, otpToken) {
@@ -96,6 +108,13 @@ async function checkUsername(username) {
     return "ok";
 }
 
+async function mixPassword(password) {
+    let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
+    let passwordHash = await bcrypt.hash(sha256, nconf.get("saltRounds"));
+    
+    return passwordHash;
+}
+
 router.post("/create", async function(req, res) {
     if (!req.body.username || !req.body.password || !req.body.email) {
         res.status(400).send({
@@ -114,10 +133,10 @@ router.post("/create", async function(req, res) {
                 return;
             }
                         
-            //Hash and salt the password
-            let passwordHash = await bcrypt.hash(req.body.password, nconf.get("saltRounds"));
+            //Prepare the password for storage
+            let mixedPassword = await mixPassword(req.body.password);
             let result = await db.query("INSERT INTO users(username, password, email) VALUES($1, $2, $3) RETURNING id", [
-                username, passwordHash, email
+                username, mixedPassword, email
             ]);
                         
             //Get the user ID
@@ -163,7 +182,9 @@ router.post("/token", async function(req, res) {
             //Retrieve the user from the database
             let response = await db.query("SELECT id FROM users WHERE username=$1", [username]);
             if (response.rowCount === 0) {
-                res.status(401).send();
+                res.status(401).send({
+                    "error": "authentication.incorrect"
+                });
                 return;
             }
             
@@ -272,6 +293,47 @@ router.post("/changeUsername", async function(req, res) {
                 }
             }
             
+            //Internal Server Error
+            res.status(500).send();
+        }
+    }
+});
+
+router.post("/changePassword", async function(req, res) {
+    if (!req.body.password || !req.body.newPassword) {
+        res.status(400).send({
+            "error": "fields.missing"
+        });
+    } else if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            //Ensure the password is correct
+            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+            if (isPasswordCorrect !== "ok") {
+                res.status(401).send({
+                    "error": "authentication.incorrect"
+                });
+                return;
+            }
+            
+            //Prepare the password for storage
+            let mixedPassword = await mixPassword(req.body.newPassword);
+            
+            //Update the database
+            await db.query("UPDATE users SET password=$2 WHERE id=$1", [
+                req.authUser.userId, mixedPassword
+            ]);
+            
+            //Clear out all tokens except this one
+            await db.query("DELETE FROM tokens WHERE userId=$1 AND NOT token=$2", [
+                req.authUser.userId, req.authUserToken
+            ]);
+            
+            res.status(204).send();
+        } catch (error) {
             //Internal Server Error
             res.status(500).send();
         }

@@ -11,6 +11,7 @@ module.exports = async (req, res, next) => {
         let row = await db.userForToken(token);
         if (row) {
             req.authUser = row;
+            req.authUserToken = token;
         }
     }
     
