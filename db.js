@@ -2,9 +2,19 @@ const pg = require('pg');
 const pgError = require('pg-error');
 const nconf = require('nconf');
 const winston = require('winston');
+const crypto = require('crypto');
 
 pg.Connection.prototype.parseE = pgError.parse;
 pg.Connection.prototype.parseN = pgError.parse;
+
+function userObjectForRow(row) {
+    return {
+        username: row.username,
+        userId: row.id,
+        email: row.email,
+        gravHash: crypto.createHash('md5').update(row.email.trim().toLowerCase()).digest("hex")
+    };
+}
 
 class Database {
     #pool;
@@ -124,7 +134,7 @@ class Database {
     }
     
     async userForToken(token) {
-        let response = await this.query("SELECT * FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
+        let response = await this.query("SELECT id, username, email FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
             token
         ]);
         if (response.rowCount === 0) {
@@ -132,14 +142,11 @@ class Database {
         }
         
         let row = response.rows[0];
-        return {
-            username: row.username,
-            userId: row.id
-        };
+        return userObjectForRow(row);
     }
     
     async userForUsername(username) {
-        let response = await this.query("SELECT id, username FROM users WHERE username=$1", [
+        let response = await this.query("SELECT id, username, email FROM users WHERE username=$1", [
             username
         ]);
         if (response.rowCount === 0) {
@@ -147,10 +154,7 @@ class Database {
         }
         
         let row = response.rows[0];
-        return {
-            username: row.username,
-            userId: row.id
-        };
+        return userObjectForRow(row);
     }
     
     async friendsForUserId(userId) {

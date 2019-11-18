@@ -208,6 +208,23 @@ router.post("/token", async function(req, res) {
     }
 });
 
+router.get("/profile", async function(req, res) {
+    if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            res.status(200).send({
+                user: req.authUser
+            });
+        } catch (error) {
+            //Internal Server Error
+            res.status(500).send();
+        }
+    }
+});
+
 router.post("/changeUsername", async function(req, res) {
     if (!req.body.password || !req.body.username) {
         res.status(400).send({
