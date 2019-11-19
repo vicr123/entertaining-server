@@ -130,7 +130,9 @@ class Room {
         };
         
         this.beam(message);
-        this.changeGamemode(null, this.#gamemode);
+        this.changeGamemode(null, {
+            gamemode: this.#gamemode
+        });
         this.changeBoardParams(null, this.#boardParams);
         
         for (let user of this.#users) {
