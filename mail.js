@@ -8,6 +8,10 @@ const mailConfig = nconf.get("mail");
 let transport = null;
 if (mailConfig) {
     transport = nodemailer.createTransport(mailConfig.server);
+    
+    transport.verify().catch(error => {
+        winston.log("warn", `Can't connect to SMTP server: ${error.code} ${error.response}`);
+    });
 }
 
 class Mail {
