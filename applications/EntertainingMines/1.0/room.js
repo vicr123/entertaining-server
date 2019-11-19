@@ -8,6 +8,7 @@ class Room {
     #users;
     #gamemode;
     #playing;
+    #maxUsers;
     
     #boardParams;
     #board;
@@ -22,6 +23,7 @@ class Room {
             height: 9,
             mines: 10
         };
+        this.#maxUsers = 10;
         rooms[this.#id] = this;
         
         winston.log("verbose", `Entertaining Mines room #${this.#id} created`);
@@ -70,7 +72,10 @@ class Room {
     
     addUser(user) {
         if (this.#playing) {
-            //TODO: Do something because the room is closed
+            return "room.closed";
+        }
+        if (this.#users.count >= this.#maxUsers) {
+            return "room.full";
         }
         
         this.#users.push(user);
@@ -84,6 +89,8 @@ class Room {
             lobbyId: this.#id
         });
         this.beamRoomUpdate();
+        
+        return "ok";
     }
     
     removeUser(user) {
@@ -109,13 +116,17 @@ class Room {
         let users = [];
         
         for (let user of this.#users) {
-            users.push(user.username);
+            users.push({
+                username: user.username,
+                picture: user.picture,
+                isHost: this.isHost(user)
+            });
         }
         
         let message = {
             type: "roomUpdate",
             users: users,
-            maxUsers: 4
+            maxUsers: this.#maxUsers
         };
         
         this.beam(message);
@@ -194,6 +205,8 @@ class Room {
         for (let user of this.#users) {
             user.changeState("lobby");
         }
+        
+        this.beamRoomUpdate();
     }
     
     boardAction(user, message) {

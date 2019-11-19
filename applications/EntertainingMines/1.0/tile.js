@@ -33,6 +33,10 @@ class Tile extends EventEmitter {
         return this.#numMinesAdj;
     }
     
+    sendTileUpdate() {
+        this.emit("tileUpdate", this.tileUpdate());
+    }
+    
     tileUpdate() {
         let updateObj = {
             type: "tileUpdate",
@@ -40,7 +44,7 @@ class Tile extends EventEmitter {
             state: this.state
         };
         
-        if (this.state == Tile.States.revealed) {
+        if (this.state == Tile.States.revealed || this.#board.gameIsOver) {
             updateObj.isMine = this.isMine;
             updateObj.number = this.minesAdjacent;
         }
@@ -48,20 +52,18 @@ class Tile extends EventEmitter {
         return updateObj;
     }
     
-    reveal() {
+    reveal(user) {
         if (this.state === Tile.States.idle) {
             this.state = Tile.States.revealed;
             this.emit("tileUpdate", this.tileUpdate());
             this.emit("tileRevealed");
             
             if (this.isMine) {
-                this.emit("revealedMine");
-            }
-            
-            if (this.minesAdjacent === 0) {
+                this.emit("revealedMine", user);
+            } else if (this.minesAdjacent === 0) {
                 //Reveal all the adjacent mines
                 for (let tileNum of this.#board.tilesAdjacent(this.#tileNumber)) {
-                    this.#board.tile(tileNum).reveal();
+                    this.#board.tile(tileNum).reveal(user);
                 }
             }
         }
@@ -70,13 +72,15 @@ class Tile extends EventEmitter {
     flag() {
         if (this.state === Tile.States.idle) {
             this.state = Tile.States.flagged;
+            this.#board.changeMinesRemaining(false);
         } else if (this.state === Tile.States.flagged) {
             this.state = Tile.States.idle;
+            this.#board.changeMinesRemaining(true);
         }
         this.emit("tileUpdate", this.tileUpdate());
     }
     
-    sweep() {
+    sweep(user) {
         if (this.state === Tile.States.revealed) {
             let numFlags = 0;
             let tilesToSweep = [];
@@ -94,7 +98,7 @@ class Tile extends EventEmitter {
             if (this.minesAdjacent === numFlags) {
                 //Sweep the tile
                 for (let tile of tilesToSweep) {
-                    tile.reveal();
+                    tile.reveal(user);
                 }
             }
         }

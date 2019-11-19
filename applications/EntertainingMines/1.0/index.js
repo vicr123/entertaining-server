@@ -12,6 +12,7 @@ class Game {
     #ws;
     #username;
     #userId;
+    #picture;
     #state;
     #room;
     
@@ -21,6 +22,10 @@ class Game {
         this.#userId = userId;
         this.#state = States.idle;
         this.#room = null;
+        
+        db.userForUsername(username).then(info => {
+            this.#picture = info.gravHash;
+        });
         
         ws.on("close", (code, reason) => {
             winston.log('silly', `Entertaining Mines client closed with close code ${code}`);
@@ -75,7 +80,14 @@ class Game {
                 return;
             }
             
-            room.addUser(this);
+            let addUserResponse = room.addUser(this);
+            if (addUserResponse !== "ok") {
+                this.#ws.sendObject({
+                    type: "joinRoomFailed",
+                    reason: addUserResponse
+                });
+                return;
+            }
             this.#room = room;
             
             this.changeState("lobby");
@@ -141,6 +153,10 @@ class Game {
     
     get ws() {
         return this.#ws;
+    }
+    
+    get picture() {
+        return this.#picture;
     }
 }
 

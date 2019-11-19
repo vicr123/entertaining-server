@@ -3,14 +3,19 @@ const Tile = require('./tile');
 class CoopBoard {
     #boardSquares;
     #params;
+    #minesRemaining;
     
     #tiles;
     #room;
+    
+    #gameIsOver;
     
     constructor(params, room) {
         this.#tiles = [];
         this.#params = params;
         this.#room = room;
+        this.#gameIsOver = false;
+        this.#minesRemaining = params.mines;
         
         for (let y = 0; y < params.height; y++) {
             for (let x = 0; x < params.width; x++) {
@@ -35,13 +40,15 @@ class CoopBoard {
     }
     
     boardAction(user, message) {
+        if (this.#gameIsOver) return;
+        
         let t = this.#tiles[message.tile];
         if (message.action === "reveal") {
-            t.reveal();
+            t.reveal(user);
         } else if (message.action === "flag") {
             t.flag();
         } else if (message.action === "sweep") {
-            t.sweep();
+            t.sweep(user);
         }
     }
     
@@ -71,8 +78,22 @@ class CoopBoard {
         return this.#tiles[tileNumber];
     }
     
-    revealedMine() {
-        this.#room.endGame();
+    revealedMine(user) {
+        this.#gameIsOver = true;
+        for (let tile of this.#tiles) {
+            tile.sendTileUpdate();
+        }
+        
+        this.#room.beam({
+            "type": "endGame",
+            "victory": false,
+            "user": user.username,
+            "picture": user.picture
+        });
+        
+        setTimeout(() => {
+            this.#room.endGame();
+        }, 5000);
     }
     
     tileRevealed() {
@@ -82,7 +103,26 @@ class CoopBoard {
             }
         }
         
-        this.#room.endGame();
+        this.#room.beam({
+            "type": "endGame",
+            "victory": true
+        });
+        
+        setTimeout(() => {
+            this.#room.endGame();
+        }, 5000);
+    }
+    
+    changeMinesRemaining(increment) {
+        this.#minesRemaining += (increment ? 1 : -1);
+        this.#room.beam({
+            "type": "minesRemainingChanged",
+            "minesRemaining": this.#minesRemaining
+        });
+    }
+    
+    get gameIsOver() {
+        return this.#gameIsOver;
     }
 }
 
