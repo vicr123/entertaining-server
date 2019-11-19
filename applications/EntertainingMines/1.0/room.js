@@ -1,14 +1,27 @@
 const winston = require('winston');
+const coop = require('./coop');
 
 let rooms = {};
 
 class Room {
     #id;
     #users;
+    #gamemode;
+    #playing;
+    
+    #boardParams;
+    #board;
     
     constructor() {
         this.#id = Room.generateId();
         this.#users = [];
+        this.#gamemode = "cooperative";
+        this.#playing = false;
+        this.#boardParams = {
+            width: 9,
+            height: 9,
+            mines: 10
+        };
         rooms[this.#id] = this;
         
         winston.log("verbose", `Entertaining Mines room #${this.#id} created`);
@@ -34,7 +47,32 @@ class Room {
         return rs;
     }
     
+    processMessage(user, message) {
+        if (this.isHost(user)) {
+            const handlers = {
+                "changeGamemode": this.changeGamemode.bind(this),
+                "changeBoardParams": this.changeBoardParams.bind(this),
+                "startGame": this.startGame.bind(this)
+            };
+            
+            if (handlers.hasOwnProperty(message.type)) {
+                handlers[message.type](user, message);
+            }
+        }
+        
+        const handlers = {
+            "boardAction": this.boardAction.bind(this)
+        };
+        if (handlers.hasOwnProperty(message.type)) {
+            handlers[message.type](user, message);
+        }
+    }
+    
     addUser(user) {
+        if (this.#playing) {
+            //TODO: Do something because the room is closed
+        }
+        
         this.#users.push(user);
         
         user.ws.on("close", () => {
@@ -80,9 +118,90 @@ class Room {
             maxUsers: 4
         };
         
+        this.beam(message);
+        this.changeGamemode(null, this.#gamemode);
+        this.changeBoardParams(null, this.#boardParams);
+        
         for (let user of this.#users) {
-            user.ws.sendObject(message);
+            if (this.isHost(user)) {
+                user.ws.sendObject({
+                    type: "hostUpdate",
+                    isHost: true
+                });
+            } else {
+                user.ws.sendObject({
+                    type: "hostUpdate",
+                    isHost: false
+                });
+            }
         }
+    }
+    
+    beam(message) {
+        for (let user of this.#users) {
+            this.sendMessage(user, message);
+        }
+    }
+    
+    sendMessage(user, message) {
+        user.ws.sendObject(message);
+    }
+    
+    changeGamemode(user, message) {
+        if (message.gamemode !== "cooperative" && message.gamemode !== "competitive") return;
+        
+//         this.#gamemode = message.gamemode;
+        this.#gamemode = "cooperative";
+        this.beam({
+            type: "gamemodeChange",
+            gamemode: this.#gamemode
+        });
+    }
+    
+    changeBoardParams(user, message) {
+        this.#boardParams = {
+            width: message.width,
+            height: message.height,
+            mines: message.mines
+        };
+        
+        this.beam({
+            type: "boardParamsChange",
+            width: message.width,
+            height: message.height,
+            mines: message.mines
+        });
+    };
+    
+    startGame(user, message) {
+        //Start the game!
+        this.#playing = true;
+        this.#board = new coop(this.#boardParams, this);
+        
+        this.beam({
+            type: "boardSetup",
+            width: this.#boardParams.width,
+            height: this.#boardParams.height,
+            mines: this.#boardParams.mines
+        });
+        
+        for (let user of this.#users) {
+            user.changeState("game");
+        }
+    }
+    
+    endGame() {
+        for (let user of this.#users) {
+            user.changeState("lobby");
+        }
+    }
+    
+    boardAction(user, message) {
+        this.#board.boardAction(user, message);
+    }
+    
+    isHost(user) {
+        return this.#users[0] === user;
     }
     
     get id() {

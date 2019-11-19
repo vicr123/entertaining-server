@@ -109,6 +109,13 @@ async function checkUsername(username) {
     return "ok";
 }
 
+async function checkEmail(email) {
+    if (!/^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(email)) {
+        return "email.bad";
+    }
+    return "ok";
+}
+
 async function mixPassword(password) {
     let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
     let passwordHash = await bcrypt.hash(sha256, nconf.get("saltRounds"));
@@ -156,6 +163,14 @@ router.post("/create", async function(req, res) {
             if (usernameOk !== "ok") {
                 res.status(401).send({
                     "error": usernameOk
+                });
+                return;
+            }
+            
+            let emailOk = await checkEmail(email);
+            if (emailOk !== "ok") {
+                res.status(401).send({
+                    "error": emailOk
                 });
                 return;
             }

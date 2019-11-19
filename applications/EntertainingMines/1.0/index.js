@@ -4,7 +4,8 @@ const db = require('../../../db.js');
 
 const States = {
     idle: 0,
-    lobby: 1
+    lobby: 1,
+    game: 2
 }
 
 class Game {
@@ -19,6 +20,7 @@ class Game {
         this.#username = username;
         this.#userId = userId;
         this.#state = States.idle;
+        this.#room = null;
         
         ws.on("close", (code, reason) => {
             winston.log('silly', `Entertaining Mines client closed with close code ${code}`);
@@ -40,7 +42,11 @@ class Game {
             "leaveRoom": this.leaveRoom.bind(this),
             "availableRooms": this.getAvailableRooms.bind(this)
         };
-        if (handlers.hasOwnProperty(message.type)) handlers[message.type](message);
+        if (handlers.hasOwnProperty(message.type)) {
+            handlers[message.type](message);
+        } else if (this.#room) {
+            this.#room.processMessage(this, message);
+        }
     }
     
     createAndJoinRoom() {
@@ -72,28 +78,28 @@ class Game {
             room.addUser(this);
             this.#room = room;
             
-            this.#ws.sendObject({
-                type: "stateChange",
-                newState: "lobby"
-            });
-            this.#state = States.lobby;
+            this.changeState("lobby");
         }
     }
     
     leaveRoom() {
-        if (this.#state != States.lobby) {
+        if (this.#state != States.lobby && this.#state != States.game) {
             //Drop the connection because this is a protocol error
             this.#ws.close(1002);
         } else {
             this.#room.removeUser(this);
             this.#room = null;
             
-            this.#ws.sendObject({
-                type: "stateChange",
-                newState: "idle"
-            });
-            this.#state = States.idle;
+            this.changeState("idle");
         }
+    }
+    
+    changeState(state) {
+        this.#ws.sendObject({
+            type: "stateChange",
+            newState: state
+        });
+        this.#state = States[state];
     }
     
     async getAvailableRooms() {
