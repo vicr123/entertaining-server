@@ -9,6 +9,47 @@ const States = {
     game: 2
 }
 
+function colourFromUserId(userId) {
+    // Algorithm for converting between HSV taken from Wikipedia:
+    // https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
+    
+    let h = userId % 360;
+    let s = 1;
+    let v = 0.5;
+    
+    let c = v * s;
+    let hPr = h / 60;
+    let x = c * (1 - Math.abs(hPr % 2 - 1));
+    
+    let rgb1;
+    if (hPr <= 1) {
+        rgb1 = [c, x, 0];
+    } else if (hPr <= 2) {
+        rgb1 = [x, c, 0];
+    } else if (hPr <= 3) {
+        rgb1 = [0, c, x];
+    } else if (hPr <= 4) {
+        rgb1 = [0, x, c];
+    } else if (hPr <= 5) {
+        rgb1 = [x, 0, c];
+    } else {
+        rgb1 = [c, 0, x];
+    }
+    
+    let m = v - c;
+    let rgb = rgb1.map(y => {
+        return Math.round((y + m) * 255);
+    });
+    console.log(rgb);
+    
+    let colBuf = Buffer.allocUnsafe(4);
+    colBuf.writeUInt8(0xFF);
+    Buffer.from(rgb).copy(colBuf, 1);
+    
+    
+    return colBuf.readUInt32BE(0);
+}
+
 class Game {
     #ws;
     #username;
@@ -27,10 +68,13 @@ class Game {
         this.#room = null;
         this.#sessionId = Math.floor(Math.random() * 1000000);
         
-        let colBuf = Buffer.allocUnsafe(4);
-        colBuf.writeUInt8(0xFF);
-        crypto.randomBytes(3).copy(colBuf, 1);
-        this.#colour = colBuf.readUInt32BE(0);
+//         let colBuf = Buffer.allocUnsafe(4);
+//         colBuf.writeUInt8(0xFF);
+//         crypto.randomBytes(3).copy(colBuf, 1);
+//         this.#colour = colBuf.readUInt32BE(0);
+        
+        //Generate a colour based on the user ID of this user
+        this.#colour = colourFromUserId(userId);
                 
         db.userForUsername(username).then(info => {
             this.#picture = info.gravHash;
