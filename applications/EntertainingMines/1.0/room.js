@@ -1,5 +1,7 @@
 const winston = require('winston');
+
 const coop = require('./coop');
+const tbCoop = require('./tbcoop');
 
 let rooms = {};
 
@@ -117,8 +119,10 @@ class Room {
         
         for (let user of this.#users) {
             users.push({
+                session: user.sessionId,
                 username: user.username,
                 picture: user.picture,
+                colour: user.colour,
                 isHost: this.isHost(user)
             });
         }
@@ -161,10 +165,10 @@ class Room {
     }
     
     changeGamemode(user, message) {
-        if (message.gamemode !== "cooperative" && message.gamemode !== "competitive") return;
+        if (message.gamemode !== "cooperative" && message.gamemode !== "competitive" && message.gamemode !== "tb-cooperative") return;
         
-//         this.#gamemode = message.gamemode;
-        this.#gamemode = "cooperative";
+        this.#gamemode = message.gamemode;
+        if (this.#gamemode === "competitive") this.#gamemode = "cooperative";
         this.beam({
             type: "gamemodeChange",
             gamemode: this.#gamemode
@@ -189,7 +193,14 @@ class Room {
     startGame(user, message) {
         //Start the game!
         this.#playing = true;
-        this.#board = new coop(this.#boardParams, this);
+        
+        if (this.#gamemode === "cooperative") {
+            this.#board = new coop(this.#boardParams, this);
+        } else if (this.#gamemode === "tb-cooperative") {
+            this.#board = new tbCoop(this.#boardParams, this);
+        } else {
+            return;
+        }
         
         this.beam({
             type: "boardSetup",

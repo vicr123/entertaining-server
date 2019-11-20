@@ -66,18 +66,25 @@ class Tile extends EventEmitter {
                     this.#board.tile(tileNum).reveal(user);
                 }
             }
+            return true;
         }
+        return false;
     }
     
     flag() {
+        let mutated = false;
         if (this.state === Tile.States.idle) {
             this.state = Tile.States.flagged;
             this.#board.changeMinesRemaining(false);
+            mutated = true;
         } else if (this.state === Tile.States.flagged) {
             this.state = Tile.States.idle;
             this.#board.changeMinesRemaining(true);
+            mutated = true;
         }
         this.emit("tileUpdate", this.tileUpdate());
+        
+        return mutated;
     }
     
     sweep(user) {
@@ -100,8 +107,11 @@ class Tile extends EventEmitter {
                 for (let tile of tilesToSweep) {
                     tile.reveal(user);
                 }
+                
+                return true;
             }
         }
+        return false;
     }
 }
 

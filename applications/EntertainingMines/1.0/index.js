@@ -1,5 +1,6 @@
 const winston = require('winston');
 const Room = require('./room');
+const crypto = require('crypto');
 const db = require('../../../db.js');
 
 const States = {
@@ -12,9 +13,11 @@ class Game {
     #ws;
     #username;
     #userId;
+    #sessionId;
     #picture;
     #state;
     #room;
+    #colour;
     
     constructor(ws, username, userId) {
         this.#ws = ws;
@@ -22,7 +25,13 @@ class Game {
         this.#userId = userId;
         this.#state = States.idle;
         this.#room = null;
+        this.#sessionId = Math.floor(Math.random() * 1000000);
         
+        let colBuf = Buffer.allocUnsafe(4);
+        colBuf.writeUInt8(0xFF);
+        crypto.randomBytes(3).copy(colBuf, 1);
+        this.#colour = colBuf.readUInt32BE(0);
+                
         db.userForUsername(username).then(info => {
             this.#picture = info.gravHash;
         });
@@ -33,6 +42,13 @@ class Game {
         ws.on("jsonMessage", this.handleMessage.bind(this));
         
         winston.log('verbose', `Entertaining Mines client initialized for user ${username} (${userId})`);
+        
+        setTimeout(() => {
+            this.#ws.sendObject({
+                type: "sessionIdChanged",
+                session: this.#sessionId
+            });
+        }, 1000);
     }
     
     async handleMessage(message) {
@@ -157,6 +173,14 @@ class Game {
     
     get picture() {
         return this.#picture;
+    }
+    
+    get colour() {
+        return this.#colour;
+    }
+    
+    get sessionId() {
+        return this.#sessionId;
     }
 }
 

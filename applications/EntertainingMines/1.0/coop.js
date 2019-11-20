@@ -5,15 +5,15 @@ class CoopBoard {
     #params;
     #minesRemaining;
     
-    #tiles;
-    #room;
+    tiles;
+    room;
     
     #gameIsOver;
     
     constructor(params, room) {
-        this.#tiles = [];
+        this.tiles = [];
         this.#params = params;
-        this.#room = room;
+        this.room = room;
         this.#gameIsOver = false;
         this.#minesRemaining = params.mines;
         
@@ -25,12 +25,12 @@ class CoopBoard {
                 });
                 t.on("revealedMine", this.revealedMine.bind(this));
                 t.on("tileRevealed", this.tileRevealed.bind(this));
-                this.#tiles.push(t);
+                this.tiles.push(t);
             }
         }
         
         for (let i = 0; i < params.mines; i++) {
-            let t = this.#tiles[Math.floor(Math.random() * this.#tiles.length)]
+            let t = this.tiles[Math.floor(Math.random() * this.tiles.length)]
             if (t.isMine) {
                 i--;
             } else {
@@ -40,15 +40,15 @@ class CoopBoard {
     }
     
     boardAction(user, message) {
-        if (this.#gameIsOver) return;
+        if (this.#gameIsOver) return false;
         
-        let t = this.#tiles[message.tile];
+        let t = this.tiles[message.tile];
         if (message.action === "reveal") {
-            t.reveal(user);
+            return t.reveal(user);
         } else if (message.action === "flag") {
-            t.flag();
+            return t.flag();
         } else if (message.action === "sweep") {
-            t.sweep(user);
+            return t.sweep(user);
         }
     }
     
@@ -75,16 +75,16 @@ class CoopBoard {
     }
     
     tile(tileNumber) {
-        return this.#tiles[tileNumber];
+        return this.tiles[tileNumber];
     }
     
     revealedMine(user) {
         this.#gameIsOver = true;
-        for (let tile of this.#tiles) {
+        for (let tile of this.tiles) {
             tile.sendTileUpdate();
         }
         
-        this.#room.beam({
+        this.room.beam({
             "type": "endGame",
             "victory": false,
             "user": user.username,
@@ -92,31 +92,31 @@ class CoopBoard {
         });
         
         setTimeout(() => {
-            this.#room.endGame();
+            this.room.endGame();
         }, 5000);
     }
     
     tileRevealed() {
-        for (let tile of this.#tiles) {
+        for (let tile of this.tiles) {
             if (tile.state !== Tile.States.revealed && !tile.isMine) {
                 return;
             }
         }
         
         this.#gameIsOver = true;
-        this.#room.beam({
+        this.room.beam({
             "type": "endGame",
             "victory": true
         });
         
         setTimeout(() => {
-            this.#room.endGame();
+            this.room.endGame();
         }, 5000);
     }
     
     changeMinesRemaining(increment) {
         this.#minesRemaining += (increment ? 1 : -1);
-        this.#room.beam({
+        this.room.beam({
             "type": "minesRemainingChanged",
             "minesRemaining": this.#minesRemaining
         });
