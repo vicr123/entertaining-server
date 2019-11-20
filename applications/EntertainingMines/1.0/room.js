@@ -209,6 +209,7 @@ class Room {
         }
         
         this.beamRoomUpdate();
+        this.#playing = false;
     }
     
     boardAction(user, message) {
