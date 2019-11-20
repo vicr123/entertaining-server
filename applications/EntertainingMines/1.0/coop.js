@@ -103,6 +103,7 @@ class CoopBoard {
             }
         }
         
+        this.#gameIsOver = true;
         this.#room.beam({
             "type": "endGame",
             "victory": true
