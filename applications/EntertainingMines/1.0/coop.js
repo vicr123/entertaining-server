@@ -46,7 +46,7 @@ class CoopBoard {
         if (message.action === "reveal") {
             return t.reveal(user);
         } else if (message.action === "flag") {
-            return t.flag();
+            return t.flag(user, message);
         } else if (message.action === "sweep") {
             return t.sweep(user);
         }

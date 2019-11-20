@@ -71,17 +71,24 @@ class Tile extends EventEmitter {
         return false;
     }
     
-    flag() {
+    flag(user, message) {
+        //Make sure the request isn't stale
+        if (message.tileState !== this.state) return;
+        
         let mutated = false;
         if (this.state === Tile.States.idle) {
             this.state = Tile.States.flagged;
             this.#board.changeMinesRemaining(false);
             mutated = true;
         } else if (this.state === Tile.States.flagged) {
-            this.state = Tile.States.idle;
+            this.state = message.doMarks ? Tile.States.marked : Tile.States.idle;
             this.#board.changeMinesRemaining(true);
             mutated = true;
+        } else if (this.state === Tile.States.marked) {
+            this.state = Tile.States.idle;
+            mutated = true;
         }
+        
         this.emit("tileUpdate", this.tileUpdate());
         
         return mutated;
