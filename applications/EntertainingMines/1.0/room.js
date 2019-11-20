@@ -99,6 +99,10 @@ class Room {
         if (this.#users.includes(user)) {
             this.#users.splice(this.#users.indexOf(user), 1);
             
+            if (this.#playing) {
+                this.#board.removeUser(user);
+            }
+            
             user.ws.sendObject({
                 type: "lobbyChange",
                 lobbyId: -1

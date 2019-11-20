@@ -122,6 +122,10 @@ class CoopBoard {
         });
     }
     
+    removeUser(user) {
+        //noop
+    }
+    
     get gameIsOver() {
         return this.#gameIsOver;
     }

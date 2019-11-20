@@ -4,6 +4,7 @@ const winston = require('winston');
 
 class TbCoopBoard extends CoopBoard {
     #currentUserIndex;
+    #currentUserSession;
     
     constructor(params, room) {
         super(params, room);
@@ -12,6 +13,12 @@ class TbCoopBoard extends CoopBoard {
         setImmediate(() => {
             this.nextUser();
         });
+    }
+    
+    removeUser(user) {
+        super.removeUser(user);
+
+        if (this.#currentUserSession == user.sessionId) this.nextUser();
     }
     
     boardAction(user, message) {
@@ -32,6 +39,8 @@ class TbCoopBoard extends CoopBoard {
     nextUser() {
         this.#currentUserIndex++;
         if (this.#currentUserIndex >= this.room.users.length) this.#currentUserIndex = 0;
+        
+        this.#currentUserSession = this.currentUser.sessionId;
         
         this.room.beam({
             type: "currentPlayerChange",
