@@ -5,12 +5,15 @@ const winston = require('winston');
 class TbCoopBoard extends CoopBoard {
     #currentUserIndex;
     #currentUserSession;
+    #timeout;
     
     constructor(params, room) {
         super(params, room);
         this.#currentUserIndex = -1;
         
         setImmediate(() => {
+            //Choose a random player to start
+            this.#currentUserIndex = Math.floor(Math.random() * this.room.users.length);
             this.nextUser();
         });
     }
@@ -18,7 +21,17 @@ class TbCoopBoard extends CoopBoard {
     removeUser(user) {
         super.removeUser(user);
 
-        if (this.#currentUserSession == user.sessionId) this.nextUser();
+        //Keep the index up to date
+        for (let i = 0; i < this.room.users.length; i++) {
+            if (user.sessionId === this.#currentUserSession) {
+                this.#currentUserIndex = i;
+                return;
+            }
+        }
+        
+        //If we get here it means the current user has left :(
+        this.#currentUserIndex--;
+        this.nextUser();
     }
     
     boardAction(user, message) {
@@ -37,14 +50,21 @@ class TbCoopBoard extends CoopBoard {
     }
     
     nextUser() {
+        if (this.gameIsOver) return; //Do nothing because the game is over
+        if (this.room.users.length === 0) return; //Bail out because everyone's gone :(
+        
         this.#currentUserIndex++;
         if (this.#currentUserIndex >= this.room.users.length) this.#currentUserIndex = 0;
         
         this.#currentUserSession = this.currentUser.sessionId;
         
+        clearTimeout(this.#timeout);
+        this.#timeout = setTimeout(this.nextUser.bind(this), 30000);
+        
         this.room.beam({
             type: "currentPlayerChange",
-            session: this.currentUser.sessionId
+            session: this.currentUser.sessionId,
+            timeout: Date.now() + 30000
         });
     }
     

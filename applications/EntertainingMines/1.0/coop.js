@@ -8,6 +8,7 @@ class CoopBoard {
     tiles;
     room;
     
+    #isFirstTileRevealed;
     #gameIsOver;
     
     constructor(params, room) {
@@ -16,6 +17,7 @@ class CoopBoard {
         this.room = room;
         this.#gameIsOver = false;
         this.#minesRemaining = params.mines;
+        this.#isFirstTileRevealed = false;
         
         for (let y = 0; y < params.height; y++) {
             for (let x = 0; x < params.width; x++) {
@@ -29,9 +31,15 @@ class CoopBoard {
             }
         }
         
-        for (let i = 0; i < params.mines; i++) {
-            let t = this.tiles[Math.floor(Math.random() * this.tiles.length)]
-            if (t.isMine) {
+    }
+    
+    generateMines(tileNumber) {
+        let adj = this.tilesAdjacent(tileNumber);
+        
+        for (let i = 0; i < this.#params.mines; i++) {
+            let tNum = Math.floor(Math.random() * this.tiles.length);
+            let t = this.tiles[tNum];
+            if (t.isMine || tNum == tileNumber || adj.includes(tNum)) {
                 i--;
             } else {
                 t.isMine = true;
@@ -44,6 +52,10 @@ class CoopBoard {
         
         let t = this.tiles[message.tile];
         if (message.action === "reveal") {
+            if (!this.#isFirstTileRevealed) {
+                this.generateMines(message.tile);
+                this.#isFirstTileRevealed = true;
+            }
             return t.reveal(user);
         } else if (message.action === "flag") {
             return t.flag(user, message);
