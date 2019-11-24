@@ -385,6 +385,62 @@ router.post("/changePassword", async function(req, res) {
     }
 });
 
+router.post("/changeEmail", async function(req, res) {
+    if (!req.body.password || !req.body.email) {
+        res.status(400).send({
+            "error": "fields.missing"
+        });
+    } else if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            //Ensure the password is correct
+            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+            if (isPasswordCorrect !== "ok") {
+                res.status(401).send({
+                    "error": "authentication.incorrect"
+                });
+                return;
+            }
+            
+            let email = req.body.email.trim();
+            
+            //Ensure the email is not the same
+            if (email === req.authUser.email) {
+                res.status(401).send({
+                    "error": "email.unchanged"
+                });
+                return;
+            }
+            
+            //Make sure the email is OK
+            let emailOk = await checkEmail(email);
+            if (emailOk !== "ok") {
+                res.status(401).send({
+                    "error": emailOk
+                });
+                return;
+            }
+            
+            //Update the database
+            await db.query("UPDATE users SET email=$2, verified=false WHERE id=$1", [
+                req.authUser.userId, email
+            ]);
+            
+            //Ask the user to verify their account
+            sendVerificationMail(req.authUser.userId);
+            
+            res.status(204).send();
+        } catch (error) {
+            //Internal Server Error
+            console.log(error);
+            res.status(500).send();
+        }
+    }
+});
+
 router.post("/resendVerification", async function(req, res) {
     if (!req.authUser) {
         res.status(401).send({
