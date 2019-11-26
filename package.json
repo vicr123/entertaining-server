@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/vicr123/entertaining-server#readme",
   "dependencies": {
+    "apidoc": "^0.18.0",
     "bcrypt": "^3.0.6",
     "express": "^4.17.1",
     "express-ws": "^4.0.0",

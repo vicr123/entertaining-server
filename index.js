@@ -35,14 +35,17 @@ function initConfiguration() {
     nconf.file("./config.json");
     nconf.defaults({
         "port": 3000,
-        "rootRedirect": "https://entertaining.games"
+        "rootAction": {
+            action: "redirect",
+            location: "https://entertaining.games"
+        }
     });
 }
 
 function initExpress() {
     return new Promise((res, rej) => {
         const port = nconf.get("port");
-        const rootRedirect = nconf.get("rootRedirect");
+        const rootAction = nconf.get("rootAction");
         
         //Prepare Express
         expressWs(app);
@@ -51,10 +54,16 @@ function initExpress() {
         app.use(authMiddleware);
         app.use("/api", require("./api/api"));
         
-        //Redirect all calls to /
-        app.all("/*", function(req, res) {
-            res.redirect(rootRedirect);
-        });
+        if (rootAction.action === "redirect") {
+            //Redirect all calls to /
+            app.all("/*", function(req, res) {
+                res.redirect(rootRedirect);
+            });
+        } else if (rootAction.action === "serve") {
+            //Serve all static pages
+            app.use(express.static(rootAction.location, rootAction.options));
+        }
+        
         
         server = app.listen(port, err => {
             if (err) {

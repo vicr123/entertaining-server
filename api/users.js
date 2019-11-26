@@ -149,6 +149,20 @@ async function sendVerificationMail(userId) {
     });
 }
 
+/**
+ * @api {post} /users/create Create a user
+ * @apiName CreateUser
+ * @apiGroup Users
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /users/create
+ *
+ * @apiParam {String} username    Username of the user to create.
+ * @apiParam {String} password    Password for the new user.
+ * @apiParam {String} email       Email of the new user.
+ *
+ * @apiSuccess {String} token     Token for the new user.
+ * @apiSuccess {String} id        User ID of the new user.
+ */
 router.post("/create", async function(req, res) {
     if (!req.body.username || !req.body.password || !req.body.email) {
         res.status(400).send({
@@ -215,6 +229,22 @@ router.post("/create", async function(req, res) {
     }
 });
 
+/**
+ * @api {post} /users/token Get Token for a user
+ * @apiName UserToken
+ * @apiGroup Users
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /users/token
+ *
+ * @apiParam {String} username    Username for the user.
+ * @apiParam {String} password    Password for the user.
+ * @apiParam {String} [otpToken]  TOTP Token for the user.
+ *
+ * @apiSuccess {String} token     Token for the new user.
+ * @apiSuccess {String} id        User ID of the new user.
+ * 
+ * @apiError {String} otp.required TOTP Token is required for this user.
+ */
 router.post("/token", async function(req, res) {
     if (!req.body.username || !req.body.password) {
         res.status(400).send({
@@ -274,6 +304,17 @@ router.post("/token", async function(req, res) {
     }
 });
 
+/**
+ * @api {get} /users/profile Get logged in user's profile
+ * @apiName UserProfile
+ * @apiGroup Users
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /users/profile
+ *
+ * @apiSuccess {String} username  Username of the current user.
+ * @apiSuccess {String} email     Email of the current user.
+ * @apiSuccess {String} id        User ID of the current user.
+ */
 router.get("/profile", async function(req, res) {
     if (!req.authUser) {
         res.status(401).send({
@@ -291,6 +332,16 @@ router.get("/profile", async function(req, res) {
     }
 });
 
+/**
+ * @api {post} /users/changeUsername Change current user's username
+ * @apiName ChangeUsername
+ * @apiGroup Users
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /users/changeUsername
+ *
+ * @apiParam {String} username  New username for the user.
+ * @apiParam {String} password  Current password for the user.
+ */
 router.post("/changeUsername", async function(req, res) {
     if (!req.body.password || !req.body.username) {
         res.status(400).send({

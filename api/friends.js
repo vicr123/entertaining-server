@@ -6,6 +6,30 @@ const play = require('../play/play');
 let router = express.Router();
 module.exports = router;
 
+/**
+ * @api . The Friends object
+ * @apiName FriendsObject
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription The Friends object contains the following members:<br /><br />
+ *
+ * | Name | Description |
+ * |---|---|
+ * |username|The username of the user|
+ * |status|The status of the user|
+ * |onlineState|Whether the player is online or not|
+ */
+
+/**
+ * @api {get} /friends Get current user's friends
+ * @apiName GetFriends
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /friends
+ *
+ * @apiSuccess {Friends[]} friends List of friends.
+ */
 router.get("/", async (req, res) => {
     if (!req.authUser) {
         res.status(401).send({
@@ -56,6 +80,17 @@ router.get("/", async (req, res) => {
     }
 });
 
+/**
+ * @api {post} /friends/requestByUsername Send a friend request by username
+ * @apiName FriendRequestByUsername
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /friends/requestByUsername
+ *
+ * @apiParam {String} username    Username of the user to request friends with.
+ * 
+ * @apiUse ERRUserUnknownTarget
+ */
 router.post("/requestByUsername", async (req, res) => {
     if (!req.body.username) {
         res.status(400).send({

@@ -1,0 +1,12 @@
+{
+    "name": "Entertaining Games",
+    "version": "1.0.0",
+    "description": "Server for Entertaining Games",
+    "title": "Entertaining Games Server Documentation",
+    "url": "https://entertaining.games/api",
+    "sampleUrl": "http://localhost:3000/api",
+    "header": {
+        "title": "Welcome",
+        "filename": "docHeader.md"
+    }
+}
