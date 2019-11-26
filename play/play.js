@@ -5,7 +5,8 @@ const winston = require('winston');
 const ApplicationWebSocketsErrors = {
     AuthenticationError: 4000,
     UnknownApplication: 4001,
-    BadVersion: 4002
+    BadVersion: 4002,
+    TermsUpdateRequired: 4003
 }
 
 let openSockets = [];
@@ -49,6 +50,14 @@ class Play {
                 ws.close(ApplicationWebSocketsErrors.AuthenticationError);
                 return;
             }
+            
+            //Make sure the user has read the terms
+            if (!row.termsRead) {
+                //Not yet read the terms
+                ws.close(ApplicationWebSocketsErrors.TermsUpdateRequired);
+                return;
+            }
+            
             let username = row.username;
             let userId = row.userId;
             

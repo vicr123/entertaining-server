@@ -13,7 +13,8 @@ function userObjectForRow(row) {
         userId: row.id,
         email: row.email,
         gravHash: crypto.createHash('md5').update(row.email.trim().toLowerCase()).digest("hex"),
-        verified: row.verified
+        verified: row.verified,
+        termsRead: row.termsread
     };
 }
 
@@ -73,7 +74,8 @@ class Database {
                                     username TEXT UNIQUE,
                                     password TEXT,
                                     email TEXT UNIQUE,
-                                    verified BOOLEAN DEFAULT false
+                                    verified BOOLEAN DEFAULT false,
+                                    termsRead BOOLEAN DEFAULT true
                                 )`);
             await client.query(`CREATE TABLE IF NOT EXISTS otp(
                                     userId INTEGER PRIMARY KEY,
@@ -136,7 +138,7 @@ class Database {
     }
     
     async userForToken(token) {
-        let response = await this.query("SELECT id, username, email, verified FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
+        let response = await this.query("SELECT * FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
             token
         ]);
         if (response.rowCount === 0) {
@@ -148,7 +150,7 @@ class Database {
     }
     
     async userForUsername(username) {
-        let response = await this.query("SELECT id, username, email, verified FROM users WHERE username=$1", [
+        let response = await this.query("SELECT * FROM users WHERE username=$1", [
             username
         ]);
         if (response.rowCount === 0) {

@@ -305,6 +305,32 @@ router.post("/token", async function(req, res) {
 });
 
 /**
+ * @api {post} /users/acceptTerms Accept the terms and community guidelines
+ * @apiName UserAcceptTerms
+ * @apiGroup Users
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /users/acceptTerms
+ */
+router.post("/acceptTerms", async function(req, res) {
+    if (!req.authUser) {
+        res.status(401).send({
+            "error": "authentication.invalid"
+        });
+    } else {
+        try {
+            await db.query("UPDATE users SET termsRead=true WHERE id=$1", [
+                req.authUser.userId
+            ]);
+            
+            res.status(204).send();
+        } catch (error) {
+            //Internal Server Error
+            res.status(500).send();
+        }
+    }
+});
+
+/**
  * @api {get} /users/profile Get logged in user's profile
  * @apiName UserProfile
  * @apiGroup Users

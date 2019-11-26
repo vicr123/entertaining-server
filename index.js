@@ -2,6 +2,8 @@ const express = require('express');
 const expressWs = require('express-ws');
 const nconf = require('nconf');
 const winston = require('winston');
+const showdown = require('showdown');
+const fs = require('fs');
 const db = require('./db');
 const authMiddleware = require("./auth-middleware");
 const app = express();
@@ -53,6 +55,24 @@ function initExpress() {
         app.use(express.json());
         app.use(authMiddleware);
         app.use("/api", require("./api/api"));
+        
+        app.get("/info/:infoFile", async function(req, res) {
+            let converter = new showdown.Converter();
+            if (fs.existsSync(`${__dirname}/documents/${req.params.infoFile}.md`)) {
+                fs.readFile
+                fs.readFile(`${__dirname}/documents/${req.params.infoFile}.md`, {
+                    encoding: "utf8"
+                }, (err, data) => {
+                    if (err) {
+                        res.status(500).send();
+                        return;
+                    }
+                    res.status(200).send(converter.makeHtml(data));
+                });
+            } else {
+                res.status(404).send();
+            }
+        });
         
         if (rootAction.action === "redirect") {
             //Redirect all calls to /
