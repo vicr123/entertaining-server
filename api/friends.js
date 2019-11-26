@@ -218,18 +218,66 @@ let respondToFriendRequest = async (req, res, accept) => {
     }
 }
 
+/**
+ * @api {post} /friends/acceptByUsername Accept a friend request by username
+ * @apiName AcceptFriendRequestByUsername
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /friends/acceptByUsername
+ *
+ * @apiParam {String} username    Username of the user to respond to.
+ * 
+ * @apiUse ERRUserUnknownTarget
+ * @apiUse ERRUserNoPendingRequest
+ */
 router.post("/acceptByUsername", async (req, res) => {
     respondToFriendRequest(req, res, "accept");
 });
 
+/**
+ * @api {post} /friends/declineByUsername Decline a friend request by username
+ * @apiName DeclineFriendRequestByUsername
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /friends/declineByUsername
+ *
+ * @apiParam {String} username    Username of the user to respond to.
+ * 
+ * @apiUse ERRUserUnknownTarget
+ * @apiUse ERRUserNoPendingRequest
+ */
 router.post("/declineByUsername", async (req, res) => {
     respondToFriendRequest(req, res, "decline");
 });
 
+/**
+ * @api {post} /friends/retractByUsername Retract a sent friend request by username
+ * @apiName RetractFriendRequestByUsername
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /friends/retractByUsername
+ *
+ * @apiParam {String} username    Username of the user to retract the friend request from.
+ * 
+ * @apiUse ERRUserUnknownTarget
+ * @apiUse ERRUserNoPendingRequest
+ */
 router.post("/retractByUsername", async (req, res) => {
     respondToFriendRequest(req, res, "retract");
 });
 
+/**
+ * @api {post} /friends/removeByUsernme Remove a friend
+ * @apiName RemoveFriendByUsername
+ * @apiGroup Friends
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /friends/removeByUsername
+ *
+ * @apiParam {String} username    Username of the user to remove friends.
+ * 
+ * @apiUse ERRUserUnknownTarget
+ * @apiUse ERRUserNotFriends
+ */
 router.post("/removeByUsername", async (req, res) => {
     if (!req.body.username) {
         res.status(400).send({

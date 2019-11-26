@@ -41,3 +41,13 @@ router.ws("/play", function(ws, req) {
   * @apiDefine ERRUserUnknownTarget
   * @apiError user.unkownTarget The user was not found
   */
+ 
+ /**
+  * @apiDefine ERRUserNoPendingRequest
+  * @apiError user.noPendingRequest There is no pending friend request from this user
+  */
+  
+ /**
+  * @apiDefine ERRUserNotFriends
+  * @apiError user.notFriends The user is not friends with the other user
+  */
