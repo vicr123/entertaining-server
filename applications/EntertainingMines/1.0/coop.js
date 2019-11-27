@@ -4,6 +4,7 @@ class CoopBoard {
     #boardSquares;
     #params;
     #minesRemaining;
+    currentTiles;
     
     tiles;
     room;
@@ -18,6 +19,7 @@ class CoopBoard {
         this.#gameIsOver = false;
         this.#minesRemaining = params.mines;
         this.#isFirstTileRevealed = false;
+        this.currentTiles = {};
         
         for (let y = 0; y < params.height; y++) {
             for (let x = 0; x < params.width; x++) {
@@ -62,6 +64,30 @@ class CoopBoard {
         } else if (message.action === "sweep") {
             return t.sweep(user);
         }
+    }
+    
+    currentTileChanged(user, message) {
+        if (message.tile < 0 || message.tile >= this.tiles.length) return;
+        
+        this.currentTiles[user.sessionId] = message.tile;
+        
+        let currentTiles = [];
+        for (let user of this.room.users) {
+            let tileDescriptor = this.currentTiles[user.sessionId];
+            if (tileDescriptor) {
+                currentTiles.push({
+                    tile: tileDescriptor,
+                    user: user.sessionId,
+                    colour: user.colour
+                });
+            }
+        }
+        
+        //Tell everyone about the current tiles
+        this.room.beam({
+            "type": "currentTilesChanged",
+            "tiles": currentTiles
+        });
     }
     
     tilesAdjacent(tileNum) {

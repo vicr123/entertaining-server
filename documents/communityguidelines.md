@@ -15,7 +15,7 @@ Keep these things in mind when you're playing Entertaining Games Online:
 - Remember the human.
 - Keep content suitable for a general audience.
     - This includes usernames and any publicly visible metadata such as titles.
-    - This also includes public chat channels (if supported by the game you're using). Private chat channels may include expletives, but please stay on the correct side of the law.
+    - This also includes public chat channels (if supported by the game you're using). Private chat channels may include expletives, but please don't do anything illegal.
 - Don't disrupt the service.
 - Don't exploit bugs to your advantage.
 

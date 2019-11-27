@@ -49,6 +49,33 @@ class TbCoopBoard extends CoopBoard {
         }
     }
     
+    currentTileChanged(user, message) {
+        if (message.tile < 0 || message.tile >= this.tiles.length) return;
+        
+        this.currentTiles[user.sessionId] = message.tile;
+        if (this.#currentUserSession === user.sessionId) this.beamCurrentTile();
+    }
+    
+    beamCurrentTile() {
+        let currentTiles = [];
+        
+        let tileDescriptor = this.currentTiles[this.#currentUserSession];
+        if (tileDescriptor) {
+            let user = this.currentUser;
+            currentTiles.push({
+                tile: tileDescriptor,
+                user: user.sessionId,
+                colour: user.colour
+            });
+        }
+        
+        //Tell everyone about the current tiles
+        this.room.beam({
+            "type": "currentTilesChanged",
+            "tiles": currentTiles
+        });
+    }
+    
     nextUser() {
         if (this.gameIsOver) return; //Do nothing because the game is over
         if (this.room.users.length === 0) return; //Bail out because everyone's gone :(
@@ -66,6 +93,8 @@ class TbCoopBoard extends CoopBoard {
             session: this.currentUser.sessionId,
             timeout: Date.now() + 30000
         });
+        
+        this.beamCurrentTile();
     }
     
     get currentUser() {

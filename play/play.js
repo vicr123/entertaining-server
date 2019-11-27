@@ -6,7 +6,8 @@ const ApplicationWebSocketsErrors = {
     AuthenticationError: 4000,
     UnknownApplication: 4001,
     BadVersion: 4002,
-    TermsUpdateRequired: 4003
+    TermsUpdateRequired: 4003,
+    AccountSuspended: 4004
 }
 
 let openSockets = [];

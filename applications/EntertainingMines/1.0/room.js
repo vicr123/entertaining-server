@@ -65,7 +65,8 @@ class Room {
         }
         
         const handlers = {
-            "boardAction": this.boardAction.bind(this)
+            "boardAction": this.boardAction.bind(this),
+            "currentTileChanged": this.currentTileChanged.bind(this)
         };
         if (handlers.hasOwnProperty(message.type)) {
             handlers[message.type](user, message);
@@ -215,6 +216,12 @@ class Room {
         
         for (let user of this.#users) {
             user.changeState("game");
+        }
+    }
+    
+    currentTileChanged(user, message) {
+        if (this.#playing) {
+            this.#board.currentTileChanged(user, message);
         }
     }
     
