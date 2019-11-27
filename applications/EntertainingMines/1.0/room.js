@@ -181,17 +181,30 @@ class Room {
     }
     
     changeBoardParams(user, message) {
+        let width = message.width;
+        let height = message.height;
+        let mines = message.mines;
+        
+        if (width < 5) width = 5;
+        if (width > 50) width = 50;
+        if (height < 5) height = 5;
+        if (height > 50) height = 50;
+        
+        let minesMax = Math.floor(width * height * 0.9) - 1;
+        if (mines < 1) mines = 1;
+        if (mines > minesMax) mines = minesMax;
+        
         this.#boardParams = {
-            width: message.width,
-            height: message.height,
-            mines: message.mines
+            width: width,
+            height: height,
+            mines: mines
         };
         
         this.beam({
             type: "boardParamsChange",
-            width: message.width,
-            height: message.height,
-            mines: message.mines
+            width: width,
+            height: height,
+            mines: mines
         });
     };
     
