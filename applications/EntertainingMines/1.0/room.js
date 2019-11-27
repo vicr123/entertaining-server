@@ -190,7 +190,7 @@ class Room {
         if (height < 5) height = 5;
         if (height > 50) height = 50;
         
-        let minesMax = Math.floor(width * height * 0.9) - 1;
+        let minesMax = Math.floor(width * height * 0.9) - 9;
         if (mines < 1) mines = 1;
         if (mines > minesMax) mines = minesMax;
         
