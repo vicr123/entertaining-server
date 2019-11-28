@@ -21,6 +21,7 @@
     "apidoc": "^0.18.0",
     "bcrypt": "^3.0.6",
     "express": "^4.17.1",
+    "express-rate-limit": "^5.0.0",
     "express-ws": "^4.0.0",
     "moment": "^2.24.0",
     "nconf": "^0.10.0",

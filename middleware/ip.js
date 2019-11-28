@@ -1,4 +1,4 @@
-const db = require('./db');
+const db = require('../db');
 const winston = require('winston');
 const nconf = require('nconf');
 

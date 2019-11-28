@@ -1,4 +1,4 @@
-const db = require('./db');
+const db = require('../db');
 
 module.exports = async (req, res, next) => {
     let authHeader = req.get("Authorization");
@@ -14,6 +14,14 @@ module.exports = async (req, res, next) => {
             req.authUserToken = token;
         }
     }
+    
+    req.sendTimed401 = (error) => {
+        setTimeout(() => {
+            res.status(401).send({
+                "error": error
+            });
+        }, 1000);
+    };
     
     next();
 };

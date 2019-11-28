@@ -5,8 +5,8 @@ const winston = require('winston');
 const showdown = require('showdown');
 const fs = require('fs');
 const db = require('./db');
-const ipMiddleware = require("./ip-middleware");
-const authMiddleware = require("./auth-middleware");
+const ipMiddleware = require("./middleware/ip");
+const authMiddleware = require("./middleware/auth");
 const app = express();
 
 let server = null;

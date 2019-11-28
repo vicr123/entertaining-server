@@ -6,6 +6,7 @@ const nconf = require('nconf');
 const winston = require('winston');
 const otplib = require('otplib');
 const mail = require('../mail');
+const queueMiddleware = require("../middleware/queue");
 const moment = require('moment');
 
 nconf.defaults({
@@ -245,64 +246,60 @@ router.post("/create", async function(req, res) {
  * 
  * @apiError {String} otp.required TOTP Token is required for this user.
  */
-router.post("/token", async function(req, res) {
-    if (!req.body.username || !req.body.password) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else {
-        try {
-            let username = req.body.username.trim();
-            
-            //Retrieve the user from the database
-            let response = await db.query("SELECT id FROM users WHERE username=$1", [username]);
-            if (response.rowCount === 0) {
-                res.status(401).send({
-                    "error": "authentication.incorrect"
-                });
-                return;
-            }
-            
-            let id = response.rows[0].id;
-            
-            //Verify the password
-            let isPasswordCorrect = await verifyPassword(id, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send({
-                    "error": "authentication.incorrect"
-                });
-                return;
-            }
-            
-            //Verify the OTP token
-            let isOtpCorrect = await verifyOtp(id, req.body.otpToken);
-            if (!isOtpCorrect) {
-                if (!req.body.otpToken || req.body.otpToken === "") {
-                    res.status(401).send({
-                        "error": "otp.required"
-                    });
-                } else {
-                    res.status(401).send({
-                        "error": "otp.incorrect"
-                    });
-                }
-                return;
-            }
-            
-            //Generate a token
-            let token = await generateTokenForUser(id);
-            
-            res.status(200).send({
-                "token": token,
-                "id": id
+router.route("/token")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.username || !req.body.password) {
+            res.status(400).send({
+                "error": "fields.missing"
             });
-        } catch (error) {
-            //Internal Server Error
-            winston.log("error", error.message);
-            res.status(500).send();
+        } else {
+            try {
+                let username = req.body.username.trim();
+                
+                //Retrieve the user from the database
+                let response = await db.query("SELECT id FROM users WHERE username=$1", [username]);
+                if (response.rowCount === 0) {
+                    req.sendTimed401("authentication.incorrect");
+                    return;
+                }
+                
+                let id = response.rows[0].id;
+                
+                //Verify the password
+                let isPasswordCorrect = await verifyPassword(id, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    req.sendTimed401("authentication.incorrect");
+                    return;
+                }
+                
+                //Verify the OTP token
+                let isOtpCorrect = await verifyOtp(id, req.body.otpToken);
+                if (!isOtpCorrect) {
+                    if (!req.body.otpToken || req.body.otpToken === "") {
+                        res.status(401).send({
+                            "error": "otp.required"
+                        });
+                    } else {
+                        req.sendTimed401("otp.incorrect");
+                    }
+                    return;
+                }
+                
+                //Generate a token
+                let token = await generateTokenForUser(id);
+                
+                res.status(200).send({
+                    "token": token,
+                    "id": id
+                });
+            } catch (error) {
+                //Internal Server Error
+                winston.log("error", error.message);
+                res.status(500).send();
+            }
         }
-    }
-});
+    });
 
 /**
  * @api {post} /users/acceptTerms Accept the terms and community guidelines
@@ -313,9 +310,7 @@ router.post("/token", async function(req, res) {
  */
 router.post("/acceptTerms", async function(req, res) {
     if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
+        req.sendTimed401("authentication.invalid");
     } else {
         try {
             await db.query("UPDATE users SET termsRead=true WHERE id=$1", [
@@ -343,9 +338,7 @@ router.post("/acceptTerms", async function(req, res) {
  */
 router.get("/profile", async function(req, res) {
     if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
+        req.sendTimed401("authentication.invalid");
     } else {
         try {
             res.status(200).send({
@@ -368,161 +361,153 @@ router.get("/profile", async function(req, res) {
  * @apiParam {String} username  New username for the user.
  * @apiParam {String} password  Current password for the user.
  */
-router.post("/changeUsername", async function(req, res) {
-    if (!req.body.password || !req.body.username) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
-    } else {
-        try {
-            //Ensure the password is correct
-            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send({
-                    "error": "authentication.incorrect"
-                });
-                return;
-            }
-            
-            let username = req.body.username.trim();
-            
-            //Ensure the username is okay
-            let usernameOk = await checkUsername(username);
-            if (usernameOk !== "ok") {
-                res.status(401).send({
-                    "error": usernameOk
-                });
-                return;
-            }
-            
-            //Update the database
-            await db.query("UPDATE users SET username=$2 WHERE id=$1", [
-                req.authUser.userId, username
-            ]);
-            
-            res.status(204).send();
-        } catch (error) {
-            if (error.code === "23505") { //unique_violation
-                if (error.constraint === "users_username_key") {
-                    res.status(409).send({
-                        "error": "username.taken"
+router.route("/changeUsername")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.password || !req.body.username) {
+            res.status(400).send({
+                "error": "fields.missing"
+            });
+        } else if (!req.authUser) {
+            req.sendTimed401("authentication.invalid");
+        } else {
+            try {
+                //Ensure the password is correct
+                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    req.sendTimed401("authentication.incorrect");
+                    return;
+                }
+                
+                let username = req.body.username.trim();
+                
+                //Ensure the username is okay
+                let usernameOk = await checkUsername(username);
+                if (usernameOk !== "ok") {
+                    res.status(401).send({
+                        "error": usernameOk
                     });
                     return;
                 }
+                
+                //Update the database
+                await db.query("UPDATE users SET username=$2 WHERE id=$1", [
+                    req.authUser.userId, username
+                ]);
+                
+                res.status(204).send();
+            } catch (error) {
+                if (error.code === "23505") { //unique_violation
+                    if (error.constraint === "users_username_key") {
+                        res.status(409).send({
+                            "error": "username.taken"
+                        });
+                        return;
+                    }
+                }
+                
+                //Internal Server Error
+                res.status(500).send();
             }
-            
-            //Internal Server Error
-            res.status(500).send();
         }
-    }
-});
+    });
 
-router.post("/changePassword", async function(req, res) {
-    if (!req.body.password || !req.body.newPassword) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
-    } else {
-        try {
-            //Ensure the password is correct
-            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send({
-                    "error": "authentication.incorrect"
-                });
-                return;
+router.route("/changePassword")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.password || !req.body.newPassword) {
+            res.status(400).send({
+                "error": "fields.missing"
+            });
+        } else if (!req.authUser) {
+            req.sendTimed401("authentication.invalid");
+        } else {
+            try {
+                //Ensure the password is correct
+                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    req.sendTimed401("authentication.incorrect");
+                    return;
+                }
+                
+                //Prepare the password for storage
+                let mixedPassword = await mixPassword(req.body.newPassword);
+                
+                //Update the database
+                await db.query("UPDATE users SET password=$2 WHERE id=$1", [
+                    req.authUser.userId, mixedPassword
+                ]);
+                
+                //Clear out all tokens except this one
+                await db.query("DELETE FROM tokens WHERE userId=$1 AND NOT token=$2", [
+                    req.authUser.userId, req.authUserToken
+                ]);
+                
+                res.status(204).send();
+            } catch (error) {
+                //Internal Server Error
+                res.status(500).send();
             }
-            
-            //Prepare the password for storage
-            let mixedPassword = await mixPassword(req.body.newPassword);
-            
-            //Update the database
-            await db.query("UPDATE users SET password=$2 WHERE id=$1", [
-                req.authUser.userId, mixedPassword
-            ]);
-            
-            //Clear out all tokens except this one
-            await db.query("DELETE FROM tokens WHERE userId=$1 AND NOT token=$2", [
-                req.authUser.userId, req.authUserToken
-            ]);
-            
-            res.status(204).send();
-        } catch (error) {
-            //Internal Server Error
-            res.status(500).send();
         }
-    }
-});
+    });
 
-router.post("/changeEmail", async function(req, res) {
-    if (!req.body.password || !req.body.email) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
-    } else {
-        try {
-            //Ensure the password is correct
-            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send({
-                    "error": "authentication.incorrect"
-                });
-                return;
+router.route("/changeEmail")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.password || !req.body.email) {
+            res.status(400).send({
+                "error": "fields.missing"
+            });
+        } else if (!req.authUser) {
+            req.sendTimed401("authentication.invalid");
+        } else {
+            try {
+                //Ensure the password is correct
+                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    req.sendTimed401("authentication.incorrect");
+                    return;
+                }
+                
+                let email = req.body.email.trim();
+                
+                //Ensure the email is not the same
+                if (email === req.authUser.email) {
+                    res.status(401).send({
+                        "error": "email.unchanged"
+                    });
+                    return;
+                }
+                
+                //Make sure the email is OK
+                let emailOk = await checkEmail(email);
+                if (emailOk !== "ok") {
+                    res.status(401).send({
+                        "error": emailOk
+                    });
+                    return;
+                }
+                
+                //Update the database
+                await db.query("UPDATE users SET email=$2, verified=false WHERE id=$1", [
+                    req.authUser.userId, email
+                ]);
+                
+                //Ask the user to verify their account
+                sendVerificationMail(req.authUser.userId);
+                
+                res.status(204).send();
+            } catch (error) {
+                //Internal Server Error
+                console.log(error);
+                res.status(500).send();
             }
-            
-            let email = req.body.email.trim();
-            
-            //Ensure the email is not the same
-            if (email === req.authUser.email) {
-                res.status(401).send({
-                    "error": "email.unchanged"
-                });
-                return;
-            }
-            
-            //Make sure the email is OK
-            let emailOk = await checkEmail(email);
-            if (emailOk !== "ok") {
-                res.status(401).send({
-                    "error": emailOk
-                });
-                return;
-            }
-            
-            //Update the database
-            await db.query("UPDATE users SET email=$2, verified=false WHERE id=$1", [
-                req.authUser.userId, email
-            ]);
-            
-            //Ask the user to verify their account
-            sendVerificationMail(req.authUser.userId);
-            
-            res.status(204).send();
-        } catch (error) {
-            //Internal Server Error
-            console.log(error);
-            res.status(500).send();
         }
-    }
-});
+    });
 
 router.post("/resendVerification", async function(req, res) {
     if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
+        req.sendTimed401("authentication.invalid");
     } else {
         try {
             //Ask the user to verify their account
@@ -542,9 +527,7 @@ router.post("/verifyEmail", async function(req, res) {
             "error": "fields.missing"
         });
     } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
+        req.sendTimed401("authentication.invalid");
     } else {
         try {
             let currentDate = moment.utc().unix();
@@ -576,70 +559,70 @@ router.post("/verifyEmail", async function(req, res) {
     }
 });
 
-router.post("/otp/status", async function(req, res) {
-    if (!req.body.password) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
-    } else {
-        try {
-            //Ensure the password is correct
-            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send();
-                return;
-            }
-            
-            //Check if there is an OTP registered
-            let result = await db.query("SELECT * FROM otp WHERE userId=$1 AND enabled=true", [
-                req.authUser.userId
-            ]);
-            if (result.rowCount === 0) {
-                //OTP is not registered, set up a new OTP key
-                await db.query("DELETE FROM otp WHERE userId=$1", [
-                    req.authUser.userId
-                ]);
-                
-                const otpKey = otplib.authenticator.generateSecret();
-                
-                await db.query("INSERT INTO otp(userId, otpKey) VALUES($1, $2)", [
-                    req.authUser.userId, otpKey
-                ]);
-                
-                res.status(200).send({
-                    "enabled": false,
-                    "otpKey": otpKey
-                });
-            } else {
-                //Acquire the backup codes for this user
-                let codes = [];
-                
-                let result = await db.query("SELECT backupKey, used FROM otpBackup WHERE userId=$1", [
-                    req.authUser.userId
-                ]);
-                for (let row of result.rows) {
-                    codes.push({
-                        code: row.backupkey,
-                        used: row.used
-                    });
+router.route("/otp/status")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.password) {
+            res.status(400).send({
+                "error": "fields.missing"
+            });
+        } else if (!req.authUser) {
+            req.sendTimed401("authentication.invalid");
+        } else {
+            try {
+                //Ensure the password is correct
+                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    res.status(401).send();
+                    return;
                 }
                 
-                res.status(200).send({
-                    "enabled": true,
-                    "codes": codes
-                });
+                //Check if there is an OTP registered
+                let result = await db.query("SELECT * FROM otp WHERE userId=$1 AND enabled=true", [
+                    req.authUser.userId
+                ]);
+                if (result.rowCount === 0) {
+                    //OTP is not registered, set up a new OTP key
+                    await db.query("DELETE FROM otp WHERE userId=$1", [
+                        req.authUser.userId
+                    ]);
+                    
+                    const otpKey = otplib.authenticator.generateSecret();
+                    
+                    await db.query("INSERT INTO otp(userId, otpKey) VALUES($1, $2)", [
+                        req.authUser.userId, otpKey
+                    ]);
+                    
+                    res.status(200).send({
+                        "enabled": false,
+                        "otpKey": otpKey
+                    });
+                } else {
+                    //Acquire the backup codes for this user
+                    let codes = [];
+                    
+                    let result = await db.query("SELECT backupKey, used FROM otpBackup WHERE userId=$1", [
+                        req.authUser.userId
+                    ]);
+                    for (let row of result.rows) {
+                        codes.push({
+                            code: row.backupkey,
+                            used: row.used
+                        });
+                    }
+                    
+                    res.status(200).send({
+                        "enabled": true,
+                        "codes": codes
+                    });
+                }
+            } catch (error) {
+                //Internal Server Error
+                winston.log("error", error.message);
+                res.status(500).send();
             }
-        } catch (error) {
-            //Internal Server Error
-            winston.log("error", error.message);
-            res.status(500).send();
         }
-    }
-});
+    });
 
 async function generateBackupOtpForUser(userId) {
     let codes = [];
@@ -670,9 +653,7 @@ router.post("/otp/enable", async function(req, res) {
             "error": "fields.missing"
         });
     } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
+        req.sendTimed401("authentication.invalid");
     } else {
         try {
             //Ensure there is a valid OTP token for this user
@@ -723,110 +704,110 @@ router.post("/otp/enable", async function(req, res) {
     }
 });
 
-router.post("/otp/disable", async function(req, res) {
-    if (!req.body.password) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
-    } else {
-        try {
-            //Ensure the password is correct
-            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send();
-                return;
-            }
-            
-            //Ensure there is a valid OTP token for this user
-            let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-            if (result.rowCount === 0) {
-                res.status(401).send({
-                    "error": "otp.unavailable"
-                });
-                return;
-            }
-            
-            //Make sure OTP tokens are currently disabled
-            let row = result.rows[0];
-            if (!row.enabled) {
-                res.status(401).send({
-                    "error": "otp.alreadyDisabled"
-                });
-                return;
-            }
-            
-            //Disable OTP key
-            await db.query("DELETE FROM otp WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-            await db.query("DELETE FROM otpBackup WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-                        
-            res.status(204).send();
-        } catch (error) {
-            //Internal Server Error
-            winston.log("error", error.message);
-            res.status(500).send();
-        }
-    }
-});
-
-router.post("/otp/regenerate", async function(req, res) {
-    if (!req.body.password) {
-        res.status(400).send({
-            "error": "fields.missing"
-        });
-    } else if (!req.authUser) {
-        res.status(401).send({
-            "error": "authentication.invalid"
-        });
-    } else {
-        try {
-            //Ensure the password is correct
-            let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
-            if (isPasswordCorrect !== "ok") {
-                res.status(401).send();
-                return;
-            }
-            
-            //Ensure there is a valid OTP token for this user
-            let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-            if (result.rowCount === 0) {
-                res.status(401).send({
-                    "error": "otp.unavailable"
-                });
-                return;
-            }
-            
-            //Make sure OTP tokens are currently enabled
-            let row = result.rows[0];
-            if (!row.enabled) {
-                res.status(401).send({
-                    "error": "otp.alreadyDisabled"
-                });
-                return;
-            }
-            
-            //Generate some backup codes
-            let backupCodes = await generateBackupOtpForUser(req.authUser.userId);
-            
-            res.status(200).send({
-                "status": "ok",
-                "backup": backupCodes
+router.route("/otp/disable")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.password) {
+            res.status(400).send({
+                "error": "fields.missing"
             });
-        } catch (error) {
-            //Internal Server Error
-            winston.log("error", error.message);
-            res.status(500).send();
+        } else if (!req.authUser) {
+            req.sendTimed401("authentication.invalid");
+        } else {
+            try {
+                //Ensure the password is correct
+                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    res.status(401).send();
+                    return;
+                }
+                
+                //Ensure there is a valid OTP token for this user
+                let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
+                    req.authUser.userId
+                ]);
+                if (result.rowCount === 0) {
+                    res.status(401).send({
+                        "error": "otp.unavailable"
+                    });
+                    return;
+                }
+                
+                //Make sure OTP tokens are currently disabled
+                let row = result.rows[0];
+                if (!row.enabled) {
+                    res.status(401).send({
+                        "error": "otp.alreadyDisabled"
+                    });
+                    return;
+                }
+                
+                //Disable OTP key
+                await db.query("DELETE FROM otp WHERE userId=$1", [
+                    req.authUser.userId
+                ]);
+                await db.query("DELETE FROM otpBackup WHERE userId=$1", [
+                    req.authUser.userId
+                ]);
+                            
+                res.status(204).send();
+            } catch (error) {
+                //Internal Server Error
+                winston.log("error", error.message);
+                res.status(500).send();
+            }
         }
-    }
-});
+    });
+
+router.route("/otp/regenerate")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        if (!req.body.password) {
+            res.status(400).send({
+                "error": "fields.missing"
+            });
+        } else if (!req.authUser) {
+            req.sendTimed401("authentication.invalid");
+        } else {
+            try {
+                //Ensure the password is correct
+                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                if (isPasswordCorrect !== "ok") {
+                    res.status(401).send();
+                    return;
+                }
+                
+                //Ensure there is a valid OTP token for this user
+                let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
+                    req.authUser.userId
+                ]);
+                if (result.rowCount === 0) {
+                    res.status(401).send({
+                        "error": "otp.unavailable"
+                    });
+                    return;
+                }
+                
+                //Make sure OTP tokens are currently enabled
+                let row = result.rows[0];
+                if (!row.enabled) {
+                    res.status(401).send({
+                        "error": "otp.alreadyDisabled"
+                    });
+                    return;
+                }
+                
+                //Generate some backup codes
+                let backupCodes = await generateBackupOtpForUser(req.authUser.userId);
+                
+                res.status(200).send({
+                    "status": "ok",
+                    "backup": backupCodes
+                });
+            } catch (error) {
+                //Internal Server Error
+                winston.log("error", error.message);
+                res.status(500).send();
+            }
+        }
+    });
