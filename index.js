@@ -5,6 +5,7 @@ const winston = require('winston');
 const showdown = require('showdown');
 const fs = require('fs');
 const db = require('./db');
+const ipMiddleware = require("./ip-middleware");
 const authMiddleware = require("./auth-middleware");
 const app = express();
 
@@ -54,6 +55,7 @@ function initExpress() {
         
         app.use(express.json());
         app.use(authMiddleware);
+        app.use(ipMiddleware);
         app.use("/api", require("./api/api"));
         
         app.get("/info/:infoFile", async function(req, res) {
