@@ -55,7 +55,7 @@ function initExpress() {
         
         app.use(express.json());
         app.use(authMiddleware);
-        app.use(ipMiddleware);
+        app.use(ipMiddleware());
         app.use("/api", require("./api/api"));
         
         app.get("/info/:infoFile", async function(req, res) {
@@ -79,7 +79,7 @@ function initExpress() {
         if (rootAction.action === "redirect") {
             //Redirect all calls to /
             app.all("/*", function(req, res) {
-                res.redirect(rootRedirect);
+                res.redirect(rootAction.location);
             });
         } else if (rootAction.action === "serve") {
             //Serve all static pages
