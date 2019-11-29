@@ -66,7 +66,8 @@ class Room {
         
         const handlers = {
             "boardAction": this.boardAction.bind(this),
-            "currentTileChanged": this.currentTileChanged.bind(this)
+            "currentTileChanged": this.currentTileChanged.bind(this),
+            "sendMessage": this.sendCannedMessage.bind(this)
         };
         if (handlers.hasOwnProperty(message.type)) {
             handlers[message.type](user, message);
@@ -167,6 +168,15 @@ class Room {
     
     sendMessage(user, message) {
         user.ws.sendObject(message);
+    }
+    
+    sendCannedMessage(user, message) {
+        this.beam({
+            type: "cannedMessage",
+            user: user.sessionId,
+            username: user.username,
+            message: message.message
+        });
     }
     
     changeGamemode(user, message) {
