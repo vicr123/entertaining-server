@@ -6,6 +6,8 @@ ${tempPassword}
 
 After logging in with this passsword, you'll be asked to set a new one.
 
+If this wasn't you, don't worry; nothing's changed on your account so far. You can continue to log in with your old password.
+
 Be speedy though, this password will expire in half an hour. You can request another password reset once that time has passed.
 
 Have fun,
