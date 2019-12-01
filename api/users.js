@@ -443,6 +443,13 @@ router.route("/changePassword")
                     req.authUser.userId, req.authUserToken
                 ]);
                 
+                //Tell the user
+                if (req.authUser.verified) {
+                    mail.sendTemplate(req.authUser.email, "passwordChanged", {
+                        name: req.authUser.username
+                    });
+                }
+                
                 res.status(204).send();
             } catch (error) {
                 //Internal Server Error

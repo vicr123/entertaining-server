@@ -1,0 +1,11 @@
+Hi ${name}!
+
+Someone (hopefully you) just changed the password for your Entertaining Games account.
+
+DIDN'T EXPECT THIS?
+If this wasn't you, please reply to this email as soon as possible and we'll look into it.
+
+Have fun,
+- Entertaining Games Team
+
+This email not for you? Reply to this message and we'll sort it out. Thanks!

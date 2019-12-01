@@ -32,6 +32,12 @@
                 border-bottom: 1px solid white;
             }
             
+            h2.header {
+                margin: 0px;
+                font-size: 12pt;
+                text-transform: uppercase;
+            }
+            
             div.content {
                 padding: 9px;
             }
@@ -57,22 +63,15 @@
     <body>
         <div class="container">
             <h1 class="header">
-                Verify your email for Entertaining Games
+                Your password was changed
             </h1>
             <div class="content">
                 <p>Hi ${name}!</p>
                 <p>&nbsp;</p>
-                <p>Thanks for signing up for an Entertaining Games account.</p>
+                <p>Someone (hopefully you) just changed the password for your Entertaining Games account.</p>
                 <p>&nbsp;</p>
-                <p>The verification code you'll need to enter to verify your email is shown below.</p>
-                <div class="code">
-                    ${code}
-                </div>
-                <p>Go to the Accounts screen in any Entertaining Games application and enter this code in to verify your email.</p>
-                <p>&nbsp;</p>
-                <p>Be speedy though, this verification code will expire in 24 hours. You can request a new verification code in the Accounts screen in any Entertaining Games application.</p>
-                <p>&nbsp;</p>
-                <p>Thanks for signing up for an Entertaining Games account!</p>
+                <h2 class="header">Didn't expect this?</h2>
+                <p>If this wasn't you, please reply to this email as soon as possible and we'll look into it.</p>
                 <p>&nbsp;</p>
                 <p>Have fun,</p>
                 <p>- Entertaining Games Team</p>
