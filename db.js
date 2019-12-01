@@ -103,6 +103,13 @@ class Database {
                                     CONSTRAINT pk_verifications PRIMARY KEY(userId),
                                     CONSTRAINT fk_verifications_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
                                 )`);
+            await client.query(`CREATE TABLE IF NOT EXISTS passwordResets(
+                                    userId INTEGER,
+                                    temporaryPassword TEXT UNIQUE NOT NULL,
+                                    expiry BIGINT NOT NULL,
+                                    CONSTRAINT pk_passwordResets PRIMARY KEY(userId),
+                                    CONSTRAINT fk_passwordResets_userId FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
+                                )`);
             await client.query(`CREATE TABLE IF NOT EXISTS friends(
                                     firstUser INTEGER,
                                     secondUser INTEGER,

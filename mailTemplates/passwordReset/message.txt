@@ -1,0 +1,14 @@
+Hi ${name}!
+
+We heard that you might have forgotten your password, so here's one you can use to log in with.
+
+${tempPassword}
+
+After logging in with this passsword, you'll be asked to set a new one.
+
+Be speedy though, this password will expire in half an hour. You can request another password reset once that time has passed.
+
+Have fun,
+- Entertaining Games Team
+
+P.S. This email not for you? Reply to this message and we'll sort it out. Thanks!

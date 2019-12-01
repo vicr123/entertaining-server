@@ -63,6 +63,17 @@ async function verifyPassword(userId, password) {
         return "ok";
     }
     
+    let currentDate = moment.utc().unix();
+    response = await db.query("SELECT temporaryPassword, expiry FROM passwordResets WHERE userId=$1 AND expiry>$2", [
+        userId, currentDate
+    ]);
+    if (response.rowCount !== 0) {
+        let row = response.rows[0];
+        if (await bcrypt.compare(sha256, row.temporarypassword)) {
+            return "recovery";
+        }
+    }
+    
     return "no";
 }
 
@@ -137,10 +148,10 @@ async function sendVerificationMail(userId) {
     let expiry = moment.utc().add(1, 'days').unix();
     let verification = "" + Math.floor(Math.random() * 900000 + 100000);
     
-    await db.query("DELETE FROM verifications WHERE userId=$1", [
-        userId
-    ]);
-    await db.query("INSERT INTO verifications(userId, verificationString, expiry) VALUES($1, $2, $3)", [
+//     await db.query("DELETE FROM verifications WHERE userId=$1", [
+//         userId
+//     ]);
+    await db.query("INSERT INTO verifications(userId, verificationString, expiry) VALUES($1, $2, $3) ON CONFLICT (userId) DO UPDATE SET verificationString=$2, expiry=$3", [
         userId, verification, expiry
     ]);
     
@@ -258,19 +269,54 @@ router.route("/token")
                 let username = req.body.username.trim();
                 
                 //Retrieve the user from the database
-                let response = await db.query("SELECT id FROM users WHERE username=$1", [username]);
+                let response = await db.query("SELECT * FROM users WHERE username=$1", [username]);
                 if (response.rowCount === 0) {
                     req.sendTimed401("authentication.incorrect");
                     return;
                 }
                 
-                let id = response.rows[0].id;
+                let row = response.rows[0];
+                let id = row.id;
                 
                 //Verify the password
                 let isPasswordCorrect = await verifyPassword(id, req.body.password);
                 if (isPasswordCorrect !== "ok") {
-                    req.sendTimed401("authentication.incorrect");
-                    return;
+                    if (isPasswordCorrect === "recovery") {
+                        if (!req.body.newPassword) {
+                            req.sendTimed401("authentication.changePassword");
+                            return;
+                        } else {
+                            //Change the password for this user
+                            let mixedPassword = await mixPassword(req.body.newPassword);
+                            
+                            //Update the database
+                            await db.query("UPDATE users SET password=$2 WHERE id=$1", [
+                                id, mixedPassword
+                            ]);
+                            
+                            //Clear out all tokens
+                            await db.query("DELETE FROM tokens WHERE userId=$1", [
+                                id
+                            ]);
+                            
+                            //Clear out the reset password
+                            await db.query("DELETE FROM passwordResets WHERE userId=$1", [
+                                id
+                            ]);
+                            
+                            //Tell the user
+                            if (row.verified) {
+                                mail.sendTemplate(row.email, "passwordChanged", {
+                                    name: username
+                                });
+                            }
+                            
+                            //Continue with the auth flow
+                        }
+                    } else {
+                        req.sendTimed401("authentication.incorrect");
+                        return;
+                    }
                 }
                 
                 //Verify the OTP token
@@ -411,7 +457,16 @@ router.route("/changeUsername")
             }
         }
     });
-
+/**
+ * @api {post} /users/changePassword Change current user's password
+ * @apiName ChangePassword
+ * @apiGroup Users
+ * @apiVersion 1.0.0
+ * @apiSampleRequest /users/changePassword
+ *
+ * @apiParam {String} password     Current password for the user.
+ * @apiParam {String} newPassword  New password for the user.
+ */
 router.route("/changePassword")
     .all(queueMiddleware())
     .post(async function(req, res) {
@@ -455,6 +510,72 @@ router.route("/changePassword")
                 //Internal Server Error
                 res.status(500).send();
             }
+        }
+    });
+
+router.route("/recoverPassword")
+    .all(queueMiddleware())
+    .post(async function(req, res) {
+        try {
+            if (req.body.username && req.body.email) {
+                //Immediately return an OK because we don't want a potential attacker to know
+                //if the email matches or not
+                res.status(204).send();
+                
+                //Get the email for this user and check to see if it matches
+                let result = await db.query("SELECT id, email FROM users WHERE username=$1", [
+                    req.body.username
+                ]);
+                if (result.rowCount === 0) return;
+                
+                let row = result.rows[0];
+                if (row.email === req.body.email) {
+                    //Generate a random password
+                    let randomPassword = crypto.randomBytes(24).toString('base64');
+                    let hashed = await mixPassword(randomPassword);
+                    console.log(hashed);
+                    
+                    //Put this in the database
+                    let expiry = moment.utc().add(30, 'minutes').unix();
+                    
+                    await db.query("INSERT INTO passwordResets(userId, temporaryPassword, expiry) VALUES($1, $2, $3) ON CONFLICT (userId) DO UPDATE SET temporaryPassword=$2, expiry=$3", [
+                        row.id, hashed, expiry
+                    ]);
+                    
+                    //Send the password reset email
+                    await mail.sendTemplate(row.email, "passwordReset", {
+                        name: req.body.username,
+                        tempPassword: randomPassword
+                    });
+                }
+            } else if (req.body.username) {
+                //Get the email for this user, obfuscate it and send it back
+                let result = await db.query("SELECT email FROM users WHERE username=$1", [
+                    req.body.username
+                ]);
+                if (result.rowCount === 0) {
+                    req.sendTimed401("authentication.incorrect");
+                    return;
+                }
+                
+                let email = result.rows[0].email;
+                let obfuscated = "";
+                if (email.length > 0) obfuscated += email[0];
+                if (email.length > 1) obfuscated += email[1];
+                obfuscated += "∙∙∙";
+                if (email.includes("@") && !email.endsWith("@")) {
+                    obfuscated += `@${email[email.indexOf("@") + 1]}∙∙∙`;
+                }
+                
+                res.status(200).send({
+                    challenge: "email",
+                    email: obfuscated
+                });
+            }
+        } catch (error) {
+            console.log(error);
+            //Internal Server Error
+            res.status(500).send();
         }
     });
 
