@@ -533,7 +533,6 @@ router.route("/recoverPassword")
                     //Generate a random password
                     let randomPassword = crypto.randomBytes(24).toString('base64');
                     let hashed = await mixPassword(randomPassword);
-                    console.log(hashed);
                     
                     //Put this in the database
                     let expiry = moment.utc().add(30, 'minutes').unix();
@@ -573,7 +572,6 @@ router.route("/recoverPassword")
                 });
             }
         } catch (error) {
-            console.log(error);
             //Internal Server Error
             res.status(500).send();
         }
