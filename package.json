@@ -18,19 +18,19 @@
   },
   "homepage": "https://github.com/vicr123/entertaining-server#readme",
   "dependencies": {
-    "apidoc": "^0.18.0",
-    "bcrypt": "^3.0.6",
+    "apidoc": "^0.25.0",
+    "bcrypt": "^5.0.0",
     "express": "^4.17.1",
-    "express-rate-limit": "^5.0.0",
+    "express-rate-limit": "^5.2.3",
     "express-ws": "^4.0.0",
-    "moment": "^2.24.0",
-    "nconf": "^0.10.0",
-    "nodemailer": "^6.3.1",
-    "otplib": "^11.0.1",
-    "pg": "^7.14.0",
-    "pg-cursor": "^2.0.1",
-    "pg-error": "^1.0.0",
+    "moment": "^2.29.1",
+    "nconf": "^0.11.0",
+    "nodemailer": "^6.4.17",
+    "otplib": "^12.0.1",
+    "pg": "^8.5.1",
+    "pg-cursor": "^2.5.2",
+    "pg-error": "^1.1.0",
     "showdown": "^1.9.1",
-    "winston": "^3.2.1"
+    "winston": "^3.3.3"
   }
 }
