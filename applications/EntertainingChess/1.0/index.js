@@ -112,10 +112,12 @@ class Game {
     }
 
     disconnectPeer(message) {
+        let reason = message?.reason;
         this.#matchPeer.#matchPeer = null;
         this.#matchPeer.#state = States.idle;
         this.#matchPeer.#ws.sendObject({
-            type: "peerDisconnected"
+            type: "peerDisconnected",
+            reason: reason
         });
 
         this.#matchPeer = null;
@@ -130,7 +132,8 @@ class Game {
         this.#ws.sendObject({
             type: "peerConnected",
             username: otherGame.#username,
-            picture: otherGame.#picture
+            picture: otherGame.#picture,
+            isHost: this.#isMatchHost
         });
         this.#ws.on('close', () => {
             if (this.#matchPeer == otherGame) this.disconnectPeer();
