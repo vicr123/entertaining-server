@@ -7,6 +7,7 @@ const fs = require('fs');
 const db = require('./db');
 const ipMiddleware = require("./middleware/ip");
 const authMiddleware = require("./middleware/auth");
+const report = require('./api/report');
 const app = express();
 
 let server = null;
@@ -43,6 +44,8 @@ function initConfiguration() {
             location: "https://entertaining.games"
         }
     });
+
+    report.init();
 }
 
 function initExpress() {
@@ -53,7 +56,9 @@ function initExpress() {
         //Prepare Express
         expressWs(app);
         
-        app.use(express.json());
+        app.use(express.json({
+            limit: "20mb"
+        }));
         app.use(authMiddleware);
         app.use(ipMiddleware());
         app.use("/api", require("./api/api"));

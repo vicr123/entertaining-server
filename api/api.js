@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 const users = require('./users');
 const friends = require('./friends');
 const playRouter = require('./play');
-
+const report = require('./report');
 
 let router = express.Router();
 module.exports = router;
@@ -18,6 +18,7 @@ router.use(rateLimit({
 
 router.use("/users", users);
 router.use("/friends", friends);
+router.post("/report", report);
 
 playRouter(router);
 
