@@ -112,6 +112,7 @@ class Game {
     }
 
     disconnectPeer(message) {
+        if (!this.#matchPeer) return;
         let reason = message?.reason;
         this.#matchPeer.#matchPeer = null;
         this.#matchPeer.#state = States.idle;
