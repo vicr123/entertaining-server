@@ -15,6 +15,6 @@ Send a friend request to another uesr by username
 | username | String | Username of the user to request friends with |
 
 ### Errors
-| Reason                | Description                                      |
-|-----------------------|--------------------------------------------------|
-| user.unkownTarget     | The user does not exist                          |
+| Reason                 | Description                                      |
+|------------------------|--------------------------------------------------|
+| user.unknownTarget     | The user does not exist                          |
