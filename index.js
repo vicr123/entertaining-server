@@ -92,7 +92,8 @@ function initExpress() {
             app.use("/*", proxy(rootAction.host, {
                 proxyReqPathResolver: function (req) {
                     return req.baseUrl
-                }
+                },
+                https: rootAction.forceHttps
               }));
         } else if (rootAction.action === "serve") {
             //Serve all static pages
