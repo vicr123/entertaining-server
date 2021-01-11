@@ -1,0 +1,104 @@
+/* stylelint-disable docusaurus/copyright-header */
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+
+@font-face {
+    font-family: Contemporary;
+    font-style: normal;
+    font-weight: 400;
+    src: local("Contemporary"), local("Contemporary-Regular"), url(https://vicr123.com/typeface/Contemporary-Regular.ttf)
+}
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap');
+
+:root {
+    --ifm-color-primary: rgb(0, 175, 0);
+    --ifm-color-primary-dark: rgb(33, 175, 144);
+    --ifm-color-primary-darker: rgb(31, 165, 136);
+    --ifm-color-primary-darkest: rgb(26, 136, 112);
+    --ifm-color-primary-light: rgb(70, 203, 174);
+    --ifm-color-primary-lighter: rgb(102, 212, 189);
+    --ifm-color-primary-lightest: rgb(146, 224, 208);
+    --ifm-code-font-size: 95%;
+}
+
+body {
+    font-family: 'Contemporary';
+}
+
+h1, h2, h3 {
+    font-family: 'JetBrains Mono';
+}
+
+.docusaurus-highlight-code-line {
+    background-color: rgb(72, 77, 91);
+    display: block;
+    margin: 0 calc(-1 * var(--ifm-pre-padding));
+    padding: 0 var(--ifm-pre-padding);
+}
+
+.mainHeader {
+    display: grid;
+    /* padding-top: 60px; */
+    /* padding-bottom: 60px; */
+
+    grid-template-columns: 100fr auto;
+    grid-template-rows: auto auto;
+}
+
+.logoSplash {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    /* height: 100%; */
+    height: 300px;
+}
+
+.mainHeader h1 {
+    align-self: flex-end;
+}
+
+.mainHeader h2 {
+    align-self: flex-start;
+}
+
+.token.plain {
+    font-family: 'JetBrains Mono';
+}
+
+.apiheader {
+    display: flex;
+    align-items: center;
+    font-family: 'JetBrains Mono';
+}
+
+.apiheader .url {
+    padding-left: 3px;
+}
+
+.method {
+    padding: 3px;
+}
+
+.method.post {
+    background-color: rgb(0, 150, 0);
+    color: white;
+}
+
+.method.get {
+    background-color: rgb(0, 150, 255);
+    color: white;
+}
+
+.method.object {
+    background-color: rgb(150, 0, 0);
+    color: white;
+}
+
+.remark {
+    color: gray;
+}
