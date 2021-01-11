@@ -8,6 +8,7 @@ const db = require('./db');
 const ipMiddleware = require("./middleware/ip");
 const authMiddleware = require("./middleware/auth");
 const report = require('./api/report');
+const proxy = require('express-http-proxy');
 const app = express();
 
 let server = null;
@@ -86,6 +87,13 @@ function initExpress() {
             app.all("/*", function(req, res) {
                 res.redirect(rootAction.location);
             });
+        } else if (rootAction.action === "proxy") {
+            //Proxy all calls
+            app.use("/*", proxy(rootAction.host, {
+                proxyReqPathResolver: function (req) {
+                    return req.baseUrl
+                }
+              }));
         } else if (rootAction.action === "serve") {
             //Serve all static pages
             app.use(express.static(rootAction.location, rootAction.options));

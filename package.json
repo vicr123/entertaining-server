@@ -21,6 +21,7 @@
     "apidoc": "^0.25.0",
     "bcrypt": "^5.0.0",
     "express": "^4.17.1",
+    "express-http-proxy": "^1.6.2",
     "express-rate-limit": "^5.2.3",
     "express-ws": "^4.0.0",
     "moment": "^2.29.1",
