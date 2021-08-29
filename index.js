@@ -58,7 +58,7 @@ function initConfiguration() {
 function initExpress() {
     return new Promise((res, rej) => {
         const port = nconf.get("port");
-        const rootAction = nconf.get("rootAction");
+        const rootAction = nconf.any(["rootAction", "rootaction"]);
         
         //Prepare Express
         expressWs(app);
@@ -99,7 +99,7 @@ function initExpress() {
                 proxyReqPathResolver: function (req) {
                     return req.baseUrl
                 },
-                https: rootAction.forceHttps
+                https: rootAction.forceHttps || rootAction.forcehttps
               }));
         } else if (rootAction.action === "serve") {
             //Serve all static pages

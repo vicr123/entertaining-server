@@ -19,15 +19,15 @@ module.exports = function() {
     
     return async (req, res, next) => {
         let clientIp;
-        if (nconf.get("trustProxy")) {
+        if (nconf.any(["trustProxy", "trustproxy"])) {
             let forwarded = req.get("X-Forwarded-For");
             if (forwarded) {
                 let forwardedIps = forwarded.split(",");
                 let firstIp;
-                if (forwardedIps.length >= nconf.get("proxyLimit")) {
+                if (forwardedIps.length >= nconf.any(["proxyLimit", "proxylimit"])) {
                     firstIp = forwardedIps[0];
                 } else {
-                    firstIp = forwardedIps[forwardedIps.length - 1 - nconf.get("proxyLimit")];
+                    firstIp = forwardedIps[forwardedIps.length - 1 - nconf.any(["proxyLimit", "proxylimit"])];
                 }
                 
                 if (firstIp.includes(':')) {
