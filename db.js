@@ -54,8 +54,8 @@ class Database {
             }
 
             if (hasVersionTable) {
-                let rows = await client.query(`SELECT ver FROM version`);
-                version = rows[0]["ver"];
+                let reply = await client.query(`SELECT ver FROM version`);
+                version = reply.rows[0]["ver"];
             }
 
             if (version == -1) {

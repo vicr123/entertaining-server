@@ -26,6 +26,7 @@ services:
     entertaining:
         build: ../
         depends_on: [accounts, pg-entertaining]
+        restart: always
         environment:
             DATABASE_HOST: pg-entertaining
             DATABASE_USERNAME: entertaining
@@ -34,4 +35,4 @@ services:
         volumes:
             - "/var/entertaining/vicr123-accounts:/var/vicr123-accounts"
         ports:
-            - 3000
+            - "3000:3000"

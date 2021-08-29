@@ -5,7 +5,6 @@ const db = require('../db');
 const nconf = require('nconf');
 const winston = require('winston');
 const otplib = require('otplib');
-const mail = require('../mail');
 const queueMiddleware = require("../middleware/queue");
 const moment = require('moment');
 const accounts = require('../accounts-dbus');
@@ -22,110 +21,11 @@ otplib.authenticator.options = {
 let router = express.Router();
 module.exports = router;
 
-// async function generateTokenForUser(userId) {
-//     do {
-//         let token = crypto.randomBytes(64).toString('hex');
-        
-//         //Ensure this token doesn't exist
-//         let result = await db.query("SELECT COUNT(*) AS count FROM tokens WHERE token=$1", [token]);
-//         if (result.rows[0].count == '0') {
-//             await db.query("INSERT INTO tokens(userId, token) VALUES($1, $2)", [
-//                 userId, token
-//             ]);
-//             return token;
-//         }
-//     } while (true);
-// }
-
 async function verifyPassword(userDbus, password) {
     let interface = userDbus.getInterface("com.vicr123.accounts.User");
     let ok = await interface.VerifyPassword(password);
     return ok ? "ok" : "no";
 }
-
-// async function verifyOtp(userId, otpToken) {
-    
-//     let result = await db.query("SELECT otpKey FROM otp WHERE userId=$1 AND enabled=true", [
-//         userId
-//     ]);
-//     if (result.rowCount === 0) {
-//         //OTP is disabled for this user
-//         return true;
-//     }
-    
-//     let row = result.rows[0];
-    
-//     //Check if the OTP token matches the current key
-//     if (otplib.authenticator.check(otpToken, row.otpkey)) return true;
-    
-//     //Check if the OTP token matches a backup key
-//     result = await db.query("SELECT * FROM otpBackup WHERE userId=$1 AND backupKey=$2 AND used=false", [
-//         userId, otpToken
-//     ]);
-//     if (result.rowCount !== 0) {
-//         //Mark this backup key as used
-//         await db.query("UPDATE otpBackup SET used=true WHERE userId=$1 AND backupKey=$2", [
-//             userId, otpToken
-//         ]);
-//         return true;
-//     }
-    
-//     //Couldn't verify the OTP token
-//     return false;
-// }
-
-async function checkUsername(username) {
-    //Ensure the username is within limits
-    if (username.length > 32) {
-        return "username.tooLong";
-    }
-    
-    if (!/^[A-Za-z0-9 ]+$/.test(username)) {
-        return "username.bad";
-    }
-    
-    return "ok";
-}
-
-async function checkEmail(email) {
-    if (!/^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(email)) {
-        return "email.bad";
-    }
-    return "ok";
-}
-
-// async function mixPassword(password) {
-//     let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
-//     let passwordHash = await bcrypt.hash(sha256, nconf.get("saltRounds"));
-    
-//     return passwordHash;
-// }
-
-// async function sendVerificationMail(userId) {
-//     let result = await db.query("SELECT username, email FROM users WHERE id=$1", [
-//         userId
-//     ]);
-//     if (result.rowCount === 0) {
-//         return;
-//     }
-    
-//     let row = result.rows[0];
-    
-//     let expiry = moment.utc().add(1, 'days').unix();
-//     let verification = "" + Math.floor(Math.random() * 900000 + 100000);
-    
-// //     await db.query("DELETE FROM verifications WHERE userId=$1", [
-// //         userId
-// //     ]);
-//     await db.query("INSERT INTO verifications(userId, verificationString, expiry) VALUES($1, $2, $3) ON CONFLICT (userId) DO UPDATE SET verificationString=$2, expiry=$3", [
-//         userId, verification, expiry
-//     ]);
-    
-//     await mail.sendTemplate(row.email, "verifyEmail", {
-//         name: row.username,
-//         code: verification
-//     });
-// }
 
 async function userIdForPath(path) {
     let userPath = await accounts.path(path);
