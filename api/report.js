@@ -38,7 +38,7 @@ function report(req, res) {
 }
 
 report.init = () => {
-    fs.mkdir(nconf.get("reportsLocation", "reportslocation"), {
+    fs.mkdir(nconf.any("reportsLocation", "reportslocation"), {
         recursive: true
     }, () => { });
 }
