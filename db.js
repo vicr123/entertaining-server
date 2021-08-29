@@ -3,20 +3,10 @@ const pgError = require('pg-error');
 const nconf = require('nconf');
 const winston = require('winston');
 const crypto = require('crypto');
+const accounts = require('./accounts-dbus');
 
 pg.Connection.prototype.parseE = pgError.parse;
 pg.Connection.prototype.parseN = pgError.parse;
-
-function userObjectForRow(row) {
-    return {
-        username: row.username,
-        userId: row.id,
-        email: row.email,
-        gravHash: crypto.createHash('md5').update(row.email.trim().toLowerCase()).digest("hex"),
-        verified: row.verified,
-        termsRead: row.termsread
-    };
-}
 
 class Database {
     #pool;
@@ -51,86 +41,58 @@ class Database {
         let client;
         try {
             client = await pool.connect();
+
+            let tables = await client.query(`SELECT table_name
+                                                FROM information_schema.tables
+                                                WHERE table_schema = 'public'`);
             
-            winston.log("verbose", "Creating functions...");
-            await client.query(`CREATE OR REPLACE FUNCTION generate_user_id() RETURNS INT AS $$
-                                	DECLARE
-                                		num INT := 0;
-                                		cnt INT := 0;
-                                	BEGIN
-                                		<<gen>> LOOP
-                                			num = floor(random() * 10000000 + 1000000)::INT;
-                                			cnt := (SELECT count(*)::INT FROM users WHERE id=num);
-                                		   EXIT gen WHEN cnt = 0;
-                                		END LOOP;
-                                		
-                                		RETURN num;
-                                	END
-                                $$ LANGUAGE plpgsql`);
+            let version = -1;
+            let hasVersionTable = false;
+
+            for (let row of tables.rows) {
+                if (row["table_name"] === "version") hasVersionTable = true;
+            }
+
+            if (hasVersionTable) {
+                let rows = await client.query(`SELECT ver FROM version`);
+                version = rows[0]["ver"];
+            }
+
+            if (version == -1) {
+                //Create a new database
+                winston.log("verbose", "Creating functions...");
+                
+                winston.log("verbose", "Creating tables...");
+                await client.query(`CREATE TABLE IF NOT EXISTS version(
+                    ver INT PRIMARY KEY
+                )`);
+                await client.query(`INSERT INTO version(ver) VALUES(1)`)
+                await client.query(`CREATE TABLE IF NOT EXISTS terms(
+                    userId INTEGER PRIMARY KEY,
+                    termsRead BOOLEAN DEFAULT true
+                )`);
+                await client.query(`CREATE TABLE IF NOT EXISTS friends(
+                                        firstUser INTEGER,
+                                        secondUser INTEGER,
+                                        CONSTRAINT pk_friends PRIMARY KEY(firstUser, secondUser)
+                                    )`);
+                await client.query(`CREATE TABLE IF NOT EXISTS friendRequests(
+                                        requester INTEGER,
+                                        target INTEGER,
+                                        CONSTRAINT pk_friendrequests PRIMARY KEY(requester, target)
+                                    )`);
+                await client.query(`CREATE TABLE IF NOT EXISTS blockedUsers(
+                                        userId INTEGER,
+                                        blockedUser INTEGER,
+                                        CONSTRAINT pk_blockedusers PRIMARY KEY(userId, blockedUser)
+                                    )`);
+            } else {
+                if (version <= 1) {
+                    //Update to version 2
+                    
+                }
+            }
             
-            winston.log("verbose", "Creating tables...");
-            await client.query(`CREATE TABLE IF NOT EXISTS users(
-                                    id INT DEFAULT generate_user_id() PRIMARY KEY,
-                                    username TEXT UNIQUE,
-                                    password TEXT,
-                                    email TEXT UNIQUE,
-                                    verified BOOLEAN DEFAULT false,
-                                    termsRead BOOLEAN DEFAULT true
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS otp(
-                                    userId INTEGER PRIMARY KEY,
-                                    otpKey TEXT,
-                                    enabled BOOLEAN DEFAULT false,
-                                    CONSTRAINT fk_tokens_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS otpBackup(
-                                    userId INTEGER,
-                                    backupKey TEXT,
-                                    used BOOLEAN DEFAULT false,
-                                    CONSTRAINT pk_otpBackup PRIMARY KEY(userId, backupKey),
-                                    CONSTRAINT fk_tokens_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS tokens(
-                                    userId INTEGER,
-                                    token TEXT UNIQUE,
-                                    CONSTRAINT pk_tokens PRIMARY KEY(userId, token),
-                                    CONSTRAINT fk_tokens_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS verifications(
-                                    userId INTEGER,
-                                    verificationString TEXT UNIQUE NOT NULL,
-                                    expiry BIGINT NOT NULL,
-                                    CONSTRAINT pk_verifications PRIMARY KEY(userId),
-                                    CONSTRAINT fk_verifications_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS passwordResets(
-                                    userId INTEGER,
-                                    temporaryPassword TEXT UNIQUE NOT NULL,
-                                    expiry BIGINT NOT NULL,
-                                    CONSTRAINT pk_passwordResets PRIMARY KEY(userId),
-                                    CONSTRAINT fk_passwordResets_userId FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS friends(
-                                    firstUser INTEGER,
-                                    secondUser INTEGER,
-                                    CONSTRAINT pk_friends PRIMARY KEY(firstUser, secondUser),
-                                    CONSTRAINT fk_friends_firstuser FOREIGN KEY(firstUser) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
-                                    CONSTRAINT fk_friends_seconduser FOREIGN KEY(secondUser) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS friendRequests(
-                                    requester INTEGER,
-                                    target INTEGER,
-                                    CONSTRAINT pk_friendrequests PRIMARY KEY(requester, target),
-                                    CONSTRAINT fk_friendrequests_requester FOREIGN KEY(requester) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
-                                    CONSTRAINT fk_friendrequests_target FOREIGN KEY(target) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
-            await client.query(`CREATE TABLE IF NOT EXISTS blockedUsers(
-                                    userId INTEGER,
-                                    blockedUser INTEGER,
-                                    CONSTRAINT pk_blockedusers PRIMARY KEY(userId, blockedUser),
-                                    CONSTRAINT fk_blockedusers_userid FOREIGN KEY(userId) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
-                                    CONSTRAINT fk_blockedusers_blockeduser FOREIGN KEY(blockedUser) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
-                                )`);
         } catch (err) {
             winston.log("error", err);
         } finally {
@@ -145,46 +107,44 @@ class Database {
     }
     
     async userForToken(token) {
-        let response = await this.query("SELECT * FROM users, tokens WHERE tokens.userid = users.id AND tokens.token=$1", [
-            token
-        ]);
-        if (response.rowCount === 0) {
+        try {
+            let userPath = await accounts.manager().UserForToken(token);
+            return await userObjectForPath(userPath);
+        } catch {
             return null;
         }
-        
-        let row = response.rows[0];
-        return userObjectForRow(row);
     }
     
     async userForUsername(username) {
-        let response = await this.query("SELECT * FROM users WHERE username=$1", [
-            username
-        ]);
-        if (response.rowCount === 0) {
+        try {
+            let userId = await accounts.manager().UserIdByUsername(username);
+            let userPath = await accounts.manager().UserById(userId);
+            return await userObjectForPath(userPath);
+        } catch {
             return null;
         }
-        
-        let row = response.rows[0];
-        return userObjectForRow(row);
     }
     
     async friendsForUserId(userId) {
         //Return all friends
         let friends = [];
-        
-        let results = await this.query(`SELECT first.id AS firstid, second.id AS secondid, first.username AS first, second.username AS second FROM users AS first, users AS second, friends WHERE friends.firstUser = first.id AND friends.secondUser = second.id AND (friends.firstUser=$1 OR friends.secondUser=$1)`, [
+
+        let results = await this.query(`SELECT * FROM friends WHERE (friends.firstUser=$1 OR friends.secondUser=$1)`, [
             userId
         ]);
         for (let row of results.rows) {
-            let username;
             let peerId;
-            if (row.firstid == userId) {
-                username = row.second;
-                peerId = row.secondid;
+            if (row.firstuser === userId) {
+                peerId = row.seconduser;
             } else {
-                username = row.first;
-                peerId = row.firstid;
+                peerId = row.firstuser;
             }
+
+            let path = await accounts.manager().UserById(peerId);
+            let userPath = await accounts.path(path);
+            let userProperties = userPath.getInterface("org.freedesktop.DBus.Properties");
+            let username = (await userProperties.Get("com.vicr123.accounts.User", "Username")).value;
+
             
             friends.push({
                 username: username,
@@ -195,4 +155,34 @@ class Database {
     }
 }
 
-module.exports = new Database();
+let db = new Database();
+
+async function userObjectForPath(path) {
+    let userPath = await accounts.path(path);
+    let userProperties = userPath.getInterface("org.freedesktop.DBus.Properties");
+
+    let username = (await userProperties.Get("com.vicr123.accounts.User", "Username")).value;
+    let userId = Number((await userProperties.Get("com.vicr123.accounts.User", "Id")).value);
+    let email = (await userProperties.Get("com.vicr123.accounts.User", "Email")).value;
+    let verified = (await userProperties.Get("com.vicr123.accounts.User", "Verified")).value;
+
+    let termsRead = false;
+    let termsRows = await db.query("SELECT termsRead FROM terms WHERE userId=$1", [userId]);
+    if (termsRows.rowCount === 0) {
+        // await db.query("INSERT INTO terms(userId, termsRead) VALUES($1, $2)", [userId, false])
+        termsRead = "new";
+    } else {
+        termsRead = termsRows.rows[0]["termsread"];
+    }
+
+    return {
+        username: username,
+        userId: userId,
+        email: email,
+        gravHash: crypto.createHash('md5').update(email.trim().toLowerCase()).digest("hex"),
+        verified: verified,
+        termsRead: termsRead
+    };
+}
+
+module.exports = db;

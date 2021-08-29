@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const winston = require('winston');
 const play = require('../play/play');
+const accounts = require('../accounts-dbus');
 
 let router = express.Router();
 module.exports = router;
@@ -51,22 +52,32 @@ router.get("/", async (req, res) => {
             }
             
             //Get all the requests
-            results = await db.query(`SELECT requester.username FROM friendRequests, users AS requester WHERE friendRequests.requester = requester.id AND friendRequests.target=$1`, [
+            results = await db.query(`SELECT requester FROM friendRequests WHERE friendRequests.target=$1`, [
                 req.authUser.userId
             ]);
             for (let row of results.rows) {
+                let path = await accounts.manager().UserById(row.requester);
+                let userPath = await accounts.path(path);
+                let userProperties = userPath.getInterface("org.freedesktop.DBus.Properties");
+                let username = (await userProperties.Get("com.vicr123.accounts.User", "Username")).value;
+
                 friends.push({
-                    username: row.username,
+                    username: username,
                     status: "request-incoming"
                 });
             }
             
-            results = await db.query(`SELECT target.username FROM friendRequests, users AS target WHERE friendRequests.target = target.id AND friendRequests.requester=$1`, [
+            results = await db.query(`SELECT target FROM friendRequests WHERE friendRequests.requester=$1`, [
                 req.authUser.userId
             ]);
             for (let row of results.rows) {
+                let path = await accounts.manager().UserById(row.target);
+                let userPath = await accounts.path(path);
+                let userProperties = userPath.getInterface("org.freedesktop.DBus.Properties");
+                let username = (await userProperties.Get("com.vicr123.accounts.User", "Username")).value;
+
                 friends.push({
-                    username: row.username,
+                    username: username,
                     status: "request-outgoing"
                 });
             }

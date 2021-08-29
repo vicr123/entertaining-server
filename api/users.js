@@ -8,6 +8,7 @@ const otplib = require('otplib');
 const mail = require('../mail');
 const queueMiddleware = require("../middleware/queue");
 const moment = require('moment');
+const accounts = require('../accounts-dbus');
 
 nconf.defaults({
     "saltRounds": 12,
@@ -21,92 +22,57 @@ otplib.authenticator.options = {
 let router = express.Router();
 module.exports = router;
 
-async function generateTokenForUser(userId) {
-    do {
-        let token = crypto.randomBytes(64).toString('hex');
+// async function generateTokenForUser(userId) {
+//     do {
+//         let token = crypto.randomBytes(64).toString('hex');
         
-        //Ensure this token doesn't exist
-        let result = await db.query("SELECT COUNT(*) AS count FROM tokens WHERE token=$1", [token]);
-        if (result.rows[0].count == '0') {
-            await db.query("INSERT INTO tokens(userId, token) VALUES($1, $2)", [
-                userId, token
-            ]);
-            return token;
-        }
-    } while (true);
+//         //Ensure this token doesn't exist
+//         let result = await db.query("SELECT COUNT(*) AS count FROM tokens WHERE token=$1", [token]);
+//         if (result.rows[0].count == '0') {
+//             await db.query("INSERT INTO tokens(userId, token) VALUES($1, $2)", [
+//                 userId, token
+//             ]);
+//             return token;
+//         }
+//     } while (true);
+// }
+
+async function verifyPassword(userDbus, password) {
+    let interface = userDbus.getInterface("com.vicr123.accounts.User");
+    let ok = await interface.VerifyPassword(password);
+    return ok ? "ok" : "no";
 }
 
-async function verifyPassword(userId, password) {
-    //Retrieve the user from the database
-    let response = await db.query("SELECT password FROM users WHERE id=$1", [userId]);
-    if (response.rowCount === 0) {
-        return "noUser";
-    }
+// async function verifyOtp(userId, otpToken) {
     
-    let hashedPassword = response.rows[0].password;
-    let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
+//     let result = await db.query("SELECT otpKey FROM otp WHERE userId=$1 AND enabled=true", [
+//         userId
+//     ]);
+//     if (result.rowCount === 0) {
+//         //OTP is disabled for this user
+//         return true;
+//     }
     
-    //Verify the sha256 hashed password
-    let isPasswordCorrect = await bcrypt.compare(sha256, hashedPassword);
-    if (isPasswordCorrect) {
-        return "ok";
-    }
+//     let row = result.rows[0];
     
-    //Verify the password
-    isPasswordCorrect = await bcrypt.compare(password, hashedPassword);
-    if (isPasswordCorrect) {
-        //Update the password
-        let newPassword = await mixPassword(password);
-        await db.query("UPDATE users SET password=$2 WHERE id=$1", [
-            userId, newPassword
-        ]);
-        return "ok";
-    }
+//     //Check if the OTP token matches the current key
+//     if (otplib.authenticator.check(otpToken, row.otpkey)) return true;
     
-    let currentDate = moment.utc().unix();
-    response = await db.query("SELECT temporaryPassword, expiry FROM passwordResets WHERE userId=$1 AND expiry>$2", [
-        userId, currentDate
-    ]);
-    if (response.rowCount !== 0) {
-        let row = response.rows[0];
-        if (await bcrypt.compare(sha256, row.temporarypassword)) {
-            return "recovery";
-        }
-    }
+//     //Check if the OTP token matches a backup key
+//     result = await db.query("SELECT * FROM otpBackup WHERE userId=$1 AND backupKey=$2 AND used=false", [
+//         userId, otpToken
+//     ]);
+//     if (result.rowCount !== 0) {
+//         //Mark this backup key as used
+//         await db.query("UPDATE otpBackup SET used=true WHERE userId=$1 AND backupKey=$2", [
+//             userId, otpToken
+//         ]);
+//         return true;
+//     }
     
-    return "no";
-}
-
-async function verifyOtp(userId, otpToken) {
-    
-    let result = await db.query("SELECT otpKey FROM otp WHERE userId=$1 AND enabled=true", [
-        userId
-    ]);
-    if (result.rowCount === 0) {
-        //OTP is disabled for this user
-        return true;
-    }
-    
-    let row = result.rows[0];
-    
-    //Check if the OTP token matches the current key
-    if (otplib.authenticator.check(otpToken, row.otpkey)) return true;
-    
-    //Check if the OTP token matches a backup key
-    result = await db.query("SELECT * FROM otpBackup WHERE userId=$1 AND backupKey=$2 AND used=false", [
-        userId, otpToken
-    ]);
-    if (result.rowCount !== 0) {
-        //Mark this backup key as used
-        await db.query("UPDATE otpBackup SET used=true WHERE userId=$1 AND backupKey=$2", [
-            userId, otpToken
-        ]);
-        return true;
-    }
-    
-    //Couldn't verify the OTP token
-    return false;
-}
+//     //Couldn't verify the OTP token
+//     return false;
+// }
 
 async function checkUsername(username) {
     //Ensure the username is within limits
@@ -128,37 +94,44 @@ async function checkEmail(email) {
     return "ok";
 }
 
-async function mixPassword(password) {
-    let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
-    let passwordHash = await bcrypt.hash(sha256, nconf.get("saltRounds"));
+// async function mixPassword(password) {
+//     let sha256 = "sha256-" + crypto.createHash('sha256').update(password).digest('base64');
+//     let passwordHash = await bcrypt.hash(sha256, nconf.get("saltRounds"));
     
-    return passwordHash;
-}
+//     return passwordHash;
+// }
 
-async function sendVerificationMail(userId) {
-    let result = await db.query("SELECT username, email FROM users WHERE id=$1", [
-        userId
-    ]);
-    if (result.rowCount === 0) {
-        return;
-    }
-    
-    let row = result.rows[0];
-    
-    let expiry = moment.utc().add(1, 'days').unix();
-    let verification = "" + Math.floor(Math.random() * 900000 + 100000);
-    
-//     await db.query("DELETE FROM verifications WHERE userId=$1", [
+// async function sendVerificationMail(userId) {
+//     let result = await db.query("SELECT username, email FROM users WHERE id=$1", [
 //         userId
 //     ]);
-    await db.query("INSERT INTO verifications(userId, verificationString, expiry) VALUES($1, $2, $3) ON CONFLICT (userId) DO UPDATE SET verificationString=$2, expiry=$3", [
-        userId, verification, expiry
-    ]);
+//     if (result.rowCount === 0) {
+//         return;
+//     }
     
-    await mail.sendTemplate(row.email, "verifyEmail", {
-        name: row.username,
-        code: verification
-    });
+//     let row = result.rows[0];
+    
+//     let expiry = moment.utc().add(1, 'days').unix();
+//     let verification = "" + Math.floor(Math.random() * 900000 + 100000);
+    
+// //     await db.query("DELETE FROM verifications WHERE userId=$1", [
+// //         userId
+// //     ]);
+//     await db.query("INSERT INTO verifications(userId, verificationString, expiry) VALUES($1, $2, $3) ON CONFLICT (userId) DO UPDATE SET verificationString=$2, expiry=$3", [
+//         userId, verification, expiry
+//     ]);
+    
+//     await mail.sendTemplate(row.email, "verifyEmail", {
+//         name: row.username,
+//         code: verification
+//     });
+// }
+
+async function userIdForPath(path) {
+    let userPath = await accounts.path(path);
+    let userProperties = userPath.getInterface("org.freedesktop.DBus.Properties");
+    let id = (await userProperties.Get("com.vicr123.accounts.User", "Id")).value;
+    return Number(id);
 }
 
 /**
@@ -184,41 +157,19 @@ router.post("/create", async function(req, res) {
         try {
             let username = req.body.username.trim();
             let email = req.body.email.trim();
-            
-            let usernameOk = await checkUsername(username);
-            if (usernameOk !== "ok") {
-                res.status(401).send({
-                    "error": usernameOk
-                });
-                return;
-            }
-            
-            let emailOk = await checkEmail(email);
-            if (emailOk !== "ok") {
-                res.status(401).send({
-                    "error": emailOk
-                });
-                return;
-            }
-                        
-            //Prepare the password for storage
-            let mixedPassword = await mixPassword(req.body.password);
-            let result = await db.query("INSERT INTO users(username, password, email) VALUES($1, $2, $3) RETURNING id", [
-                username, mixedPassword, email
+
+            let user = await accounts.manager().CreateUser(username, req.body.password, email);
+            let token = await accounts.manager().ProvisionToken(username, req.body.password, "Entertaining Games", {});
+
+            let userId = await userIdForPath(user);
+
+            await db.query("INSERT INTO terms(userId, termsRead) VALUES($1, true) ON CONFLICT (userId) DO UPDATE SET termsRead=true", [
+                userId
             ]);
-                        
-            //Get the user ID
-            let id = result.rows[0].id;
-            
-            //Get the token
-            let token = await generateTokenForUser(id);
-            
-            //Ask the user to verify their account
-            sendVerificationMail(id);
             
             await res.status(200).send({
                 "token": token,
-                "id": id
+                "id": userId
             });
         } catch (error) {
             if (error.code === "23505") { //unique_violation
@@ -267,79 +218,46 @@ router.route("/token")
         } else {
             try {
                 let username = req.body.username.trim();
-                
-                //Retrieve the user from the database
-                let response = await db.query("SELECT * FROM users WHERE username=$1", [username]);
-                if (response.rowCount === 0) {
-                    req.sendTimed401("authentication.incorrect");
-                    return;
-                }
-                
-                let row = response.rows[0];
-                let id = row.id;
-                
-                //Verify the password
-                let isPasswordCorrect = await verifyPassword(id, req.body.password);
-                if (isPasswordCorrect !== "ok") {
-                    if (isPasswordCorrect === "recovery") {
-                        if (!req.body.newPassword) {
-                            req.sendTimed401("authentication.changePassword");
-                            return;
-                        } else {
-                            //Change the password for this user
-                            let mixedPassword = await mixPassword(req.body.newPassword);
-                            
-                            //Update the database
-                            await db.query("UPDATE users SET password=$2 WHERE id=$1", [
-                                id, mixedPassword
-                            ]);
-                            
-                            //Clear out all tokens
-                            await db.query("DELETE FROM tokens WHERE userId=$1", [
-                                id
-                            ]);
-                            
-                            //Clear out the reset password
-                            await db.query("DELETE FROM passwordResets WHERE userId=$1", [
-                                id
-                            ]);
-                            
-                            //Tell the user
-                            if (row.verified) {
-                                mail.sendTemplate(row.email, "passwordChanged", {
-                                    name: username
-                                });
-                            }
-                            
-                            //Continue with the auth flow
-                        }
-                    } else {
-                        req.sendTimed401("authentication.incorrect");
-                        return;
-                    }
-                }
-                
-                //Verify the OTP token
-                let isOtpCorrect = await verifyOtp(id, req.body.otpToken);
-                if (!isOtpCorrect) {
-                    if (!req.body.otpToken || req.body.otpToken === "") {
-                        res.status(401).send({
-                            "error": "otp.required"
-                        });
-                    } else {
-                        req.sendTimed401("otp.incorrect");
-                    }
-                    return;
-                }
-                
-                //Generate a token
-                let token = await generateTokenForUser(id);
+                let password = req.body.password;
+
+                let extraOptions = {};
+                if (req.body.otpToken) extraOptions.otpToken = accounts.variant("s", req.body.otpToken);
+                if (req.body.newPassword) extraOptions.newPassword = accounts.variant("s", req.body.newPassword.trim());
+
+                let token = await accounts.manager().ProvisionToken(username, password, "Entertaining Games", extraOptions);
+                let userPath = await accounts.manager().UserForToken(token);
                 
                 res.status(200).send({
                     "token": token,
-                    "id": id
+                    "id": await userIdForPath(userPath)
                 });
             } catch (error) {
+                if (error.name === "DBusError") {
+                    switch (error.type) {
+                        case "com.vicr123.accounts.Error.NoAccount":
+                        case "com.vicr123.accounts.Error.IncorrectPassword":
+                            req.sendTimed401("authentication.incorrect");
+                            return;
+                        case "com.vicr123.accounts.Error.DisabledAccount":
+                            req.sendTimed401("authentication.disabled");
+                            return;
+                        case "com.vicr123.accounts.Error.PasswordResetRequired":
+                            req.sendTimed401("authentication.changePassword");
+                            return;
+                        case "com.vicr123.accounts.Error.PasswordResetRequestRequired":
+                            req.sendTimed401("authentication.requestPasswordChange");
+                            return;
+                        case "com.vicr123.accounts.Error.TwoFactorRequired":
+                            if (!req.body.otpToken || req.body.otpToken === "") {
+                                res.status(401).send({
+                                    "error": "otp.required"
+                                });
+                            } else {
+                                req.sendTimed401("otp.incorrect");
+                            }
+                            return;
+                    }
+                }
                 //Internal Server Error
                 winston.log("error", error.message);
                 res.status(500).send();
@@ -359,7 +277,7 @@ router.post("/acceptTerms", async function(req, res) {
         req.sendTimed401("authentication.invalid");
     } else {
         try {
-            await db.query("UPDATE users SET termsRead=true WHERE id=$1", [
+            await db.query("INSERT INTO terms(userId, termsRead) VALUES($1, true) ON CONFLICT (userId) DO UPDATE SET termsRead=true", [
                 req.authUser.userId
             ]);
             
@@ -419,7 +337,7 @@ router.route("/changeUsername")
         } else {
             try {
                 //Ensure the password is correct
-                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                let isPasswordCorrect = await verifyPassword(req.authUserDbus, req.body.password);
                 if (isPasswordCorrect !== "ok") {
                     req.sendTimed401("authentication.incorrect");
                     return;
@@ -427,19 +345,9 @@ router.route("/changeUsername")
                 
                 let username = req.body.username.trim();
                 
-                //Ensure the username is okay
-                let usernameOk = await checkUsername(username);
-                if (usernameOk !== "ok") {
-                    res.status(401).send({
-                        "error": usernameOk
-                    });
-                    return;
-                }
-                
                 //Update the database
-                await db.query("UPDATE users SET username=$2 WHERE id=$1", [
-                    req.authUser.userId, username
-                ]);
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.User");
+                await interface.SetUsername(username);
                 
                 res.status(204).send();
             } catch (error) {
@@ -479,31 +387,15 @@ router.route("/changePassword")
         } else {
             try {
                 //Ensure the password is correct
-                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                let isPasswordCorrect = await verifyPassword(req.authUserDbus, req.body.password);
                 if (isPasswordCorrect !== "ok") {
                     req.sendTimed401("authentication.incorrect");
                     return;
                 }
                 
-                //Prepare the password for storage
-                let mixedPassword = await mixPassword(req.body.newPassword);
-                
                 //Update the database
-                await db.query("UPDATE users SET password=$2 WHERE id=$1", [
-                    req.authUser.userId, mixedPassword
-                ]);
-                
-                //Clear out all tokens except this one
-                await db.query("DELETE FROM tokens WHERE userId=$1 AND NOT token=$2", [
-                    req.authUser.userId, req.authUserToken
-                ]);
-                
-                //Tell the user
-                if (req.authUser.verified) {
-                    mail.sendTemplate(req.authUser.email, "passwordChanged", {
-                        name: req.authUser.username
-                    });
-                }
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.User");
+                await interface.SetPassword(req.body.newPassword);
                 
                 res.status(204).send();
             } catch (error) {
@@ -517,59 +409,41 @@ router.route("/recoverPassword")
     .all(queueMiddleware())
     .post(async function(req, res) {
         try {
-            if (req.body.username && req.body.email) {
-                //Immediately return an OK because we don't want a potential attacker to know
-                //if the email matches or not
-                res.status(204).send();
-                
-                //Get the email for this user and check to see if it matches
-                let result = await db.query("SELECT id, email FROM users WHERE username=$1", [
-                    req.body.username
-                ]);
-                if (result.rowCount === 0) return;
-                
-                let row = result.rows[0];
-                if (row.email === req.body.email) {
-                    //Generate a random password
-                    let randomPassword = crypto.randomBytes(24).toString('base64');
-                    let hashed = await mixPassword(randomPassword);
-                    
-                    //Put this in the database
-                    let expiry = moment.utc().add(30, 'minutes').unix();
-                    
-                    await db.query("INSERT INTO passwordResets(userId, temporaryPassword, expiry) VALUES($1, $2, $3) ON CONFLICT (userId) DO UPDATE SET temporaryPassword=$2, expiry=$3", [
-                        row.id, hashed, expiry
-                    ]);
-                    
-                    //Send the password reset email
-                    await mail.sendTemplate(row.email, "passwordReset", {
-                        name: req.body.username,
-                        tempPassword: randomPassword
+
+            if (req.body.username) {
+                let userId = await accounts.manager().UserIdByUsername(req.body.username);
+                let userPath = await accounts.manager().UserById(userId);
+                let userDbus = await accounts.path(userPath);
+
+                let interface = userDbus.getInterface("com.vicr123.accounts.PasswordReset");
+
+                if (req.body.email) {
+                    //Immediately return an OK because we don't want a potential attacker to know
+                    //if the email matches or not
+                    res.status(204).send();
+    
+                    //Request the password reset
+                    await interface.ResetPassword("email", {
+                        "email": accounts.variant('s', req.body.email)
                     });
+                } else {
+                    let methods = await interface.ResetMethods();
+
+                    //TODO
+                    for (let method of methods) {
+                        if (method[0] === "email") {
+                            res.status(200).send({
+                                challenge: "email",
+                                email: `${method[1].user.value}∙∙∙@${method[1].domain.value}∙∙∙`
+                            });
+                            return;
+                        }
+                    }
+                    res.status(500).send();
+
                 }
-            } else if (req.body.username) {
-                //Get the email for this user, obfuscate it and send it back
-                let result = await db.query("SELECT email FROM users WHERE username=$1", [
-                    req.body.username
-                ]);
-                if (result.rowCount === 0) {
-                    req.sendTimed401("authentication.incorrect");
-                    return;
-                }
-                
-                let email = result.rows[0].email;
-                let obfuscated = "";
-                if (email.length > 0) obfuscated += email[0];
-                if (email.length > 1) obfuscated += email[1];
-                obfuscated += "∙∙∙";
-                if (email.includes("@") && !email.endsWith("@")) {
-                    obfuscated += `@${email[email.indexOf("@") + 1]}∙∙∙`;
-                }
-                
-                res.status(200).send({
-                    challenge: "email",
-                    email: obfuscated
-                });
+            } else {
+                res.statusCode(400);
             }
         } catch (error) {
             //Internal Server Error
@@ -589,38 +463,17 @@ router.route("/changeEmail")
         } else {
             try {
                 //Ensure the password is correct
-                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                let isPasswordCorrect = await verifyPassword(req.authUserDbus, req.body.password);
                 if (isPasswordCorrect !== "ok") {
                     req.sendTimed401("authentication.incorrect");
                     return;
                 }
                 
                 let email = req.body.email.trim();
-                
-                //Ensure the email is not the same
-                if (email === req.authUser.email) {
-                    res.status(401).send({
-                        "error": "email.unchanged"
-                    });
-                    return;
-                }
-                
-                //Make sure the email is OK
-                let emailOk = await checkEmail(email);
-                if (emailOk !== "ok") {
-                    res.status(401).send({
-                        "error": emailOk
-                    });
-                    return;
-                }
-                
+
                 //Update the database
-                await db.query("UPDATE users SET email=$2, verified=false WHERE id=$1", [
-                    req.authUser.userId, email
-                ]);
-                
-                //Ask the user to verify their account
-                sendVerificationMail(req.authUser.userId);
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.User");
+                await interface.SetEmail(email);
                 
                 res.status(204).send();
             } catch (error) {
@@ -636,8 +489,8 @@ router.post("/resendVerification", async function(req, res) {
         req.sendTimed401("authentication.invalid");
     } else {
         try {
-            //Ask the user to verify their account
-            sendVerificationMail(req.authUser.userId);
+            let interface = req.authUserDbus.getInterface("com.vicr123.accounts.User");
+            await interface.ResendVerificationEmail();
             
             res.status(204).send();
         } catch (error) {
@@ -656,28 +509,16 @@ router.post("/verifyEmail", async function(req, res) {
         req.sendTimed401("authentication.invalid");
     } else {
         try {
-            let currentDate = moment.utc().unix();
-            
-            //Check if the verification code is correct
-            let result = await db.query("SELECT * FROM verifications WHERE userId=$1 AND verificationString=$2 AND expiry>$3", [
-                req.authUser.userId, "" + req.body.verificationCode, currentDate
-            ]);
-            if (result.rowCount === 0) {
+            try {
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.User");
+                await interface.VerifyEmail("" + req.body.verificationCode);
+
+                res.status(204).send();
+            } catch {
                 res.status(400).send({
                     "error": "verification.invalid"
                 });
-                return;
             }
-            
-            //Verify the email address
-            await db.query("DELETE FROM verifications WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-            await db.query("UPDATE users SET verified=true WHERE id=$1", [
-                req.authUser.userId
-            ]);
-            
-            res.status(204).send();
         } catch (error) {
             //Internal Server Error
             res.status(500).send();
@@ -697,49 +538,27 @@ router.route("/otp/status")
         } else {
             try {
                 //Ensure the password is correct
-                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                let isPasswordCorrect = await verifyPassword(req.authUserDbus, req.body.password);
                 if (isPasswordCorrect !== "ok") {
                     res.status(401).send();
                     return;
                 }
-                
-                //Check if there is an OTP registered
-                let result = await db.query("SELECT * FROM otp WHERE userId=$1 AND enabled=true", [
-                    req.authUser.userId
-                ]);
-                if (result.rowCount === 0) {
-                    //OTP is not registered, set up a new OTP key
-                    await db.query("DELETE FROM otp WHERE userId=$1", [
-                        req.authUser.userId
-                    ]);
-                    
-                    const otpKey = otplib.authenticator.generateSecret();
-                    
-                    await db.query("INSERT INTO otp(userId, otpKey) VALUES($1, $2)", [
-                        req.authUser.userId, otpKey
-                    ]);
-                    
-                    res.status(200).send({
-                        "enabled": false,
-                        "otpKey": otpKey
-                    });
-                } else {
-                    //Acquire the backup codes for this user
-                    let codes = [];
-                    
-                    let result = await db.query("SELECT backupKey, used FROM otpBackup WHERE userId=$1", [
-                        req.authUser.userId
-                    ]);
-                    for (let row of result.rows) {
-                        codes.push({
-                            code: row.backupkey,
-                            used: row.used
-                        });
-                    }
-                    
+
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.TwoFactor");
+                let properties = req.authUserDbus.getInterface("org.freedesktop.DBus.Properties");
+
+                if ((await properties.Get("com.vicr123.accounts.TwoFactor", "TwoFactorEnabled")).value) {
                     res.status(200).send({
                         "enabled": true,
-                        "codes": codes
+                        "codes": (await properties.Get("com.vicr123.accounts.TwoFactor", "BackupKeys")).value.map(keys => ({
+                            code: keys[0],
+                            used: keys[1]
+                        }))
+                    });
+                } else {
+                    res.status(200).send({
+                        "enabled": false,
+                        "otpKey": await interface.GenerateTwoFactorKey()
                     });
                 }
             } catch (error) {
@@ -750,29 +569,6 @@ router.route("/otp/status")
         }
     });
 
-async function generateBackupOtpForUser(userId) {
-    let codes = [];
-    
-    await db.query("DELETE FROM otpBackup WHERE userId=$1", [
-        userId
-    ]);
-    
-    for (let i = 0; i < 10; i++) {
-        let code = crypto.randomBytes(4);
-        let codeString = "";
-        
-        for (let i = 0; i < code.length; i++) {
-            codeString += code[i].toString().padStart(3, '0');
-        }
-        
-        await db.query("INSERT INTO otpBackup(userId, backupKey) VALUES($1, $2)", [
-            userId, codeString
-        ]);
-        codes.push(codeString);
-    };
-    return codes;
-}
-
 router.post("/otp/enable", async function(req, res) {
     if (!req.body.otpToken) {
         res.status(400).send({
@@ -782,47 +578,33 @@ router.post("/otp/enable", async function(req, res) {
         req.sendTimed401("authentication.invalid");
     } else {
         try {
-            //Ensure there is a valid OTP token for this user
-            let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-            if (result.rowCount === 0) {
-                res.status(400).send({
-                    "error": "otp.unavailable"
-                });
-                return;
-            }
-            
-            //Make sure OTP tokens are currently disabled
-            let row = result.rows[0];
-            if (row.enabled) {
-                res.status(400).send({
-                    "error": "otp.alreadyEnabled"
-                });
-                return;
-            }
-            
-            //Ensure the OTP token provided is correct
-            if (!otplib.authenticator.check(req.body.otpToken, row.otpkey)) {
-                res.status(401).send({
-                    "error": "otp.invalidToken"
-                });
-                return;
-            }
-            
-            //Enable OTP key
-            await db.query("UPDATE otp SET enabled=true WHERE userId=$1", [
-                req.authUser.userId
-            ]);
-            
-            //Generate some backup codes
-            let backupCodes = await generateBackupOtpForUser(req.authUser.userId);
+            let interface = req.authUserDbus.getInterface("com.vicr123.accounts.TwoFactor");
+            let properties = req.authUserDbus.getInterface("org.freedesktop.DBus.Properties");
+            await interface.EnableTwoFactorAuthentication(req.body.otpToken);
             
             res.status(200).send({
                 "status": "ok",
-                "backup": backupCodes
+                "backup": (await properties.Get("com.vicr123.accounts.TwoFactor", "BackupKeys")).value.map(keys => ({
+                    code: keys[0],
+                    used: keys[1]
+                }))
             });
         } catch (error) {
+            if (error.name === "DBusError") {
+                switch (error.type) {
+                    case "com.vicr123.accounts.Error.TwoFactorEnabled":
+                        res.status(400).send({
+                            "error": "otp.alreadyEnabled"
+                        });
+                        return;
+                    case "com.vicr123.accounts.Error.TwoFactorRequired":
+                        res.status(401).send({
+                            "error": "otp.invalidToken"
+                        });
+                        return;
+                }
+            }
+
             //Internal Server Error
             winston.log("error", error.message);
             res.status(500).send();
@@ -842,42 +624,27 @@ router.route("/otp/disable")
         } else {
             try {
                 //Ensure the password is correct
-                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                let isPasswordCorrect = await verifyPassword(req.authUserDbus, req.body.password);
                 if (isPasswordCorrect !== "ok") {
                     res.status(401).send();
                     return;
                 }
+
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.TwoFactor");
+                await interface.DisableTwoFactorAuthentication();
                 
-                //Ensure there is a valid OTP token for this user
-                let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
-                    req.authUser.userId
-                ]);
-                if (result.rowCount === 0) {
-                    res.status(401).send({
-                        "error": "otp.unavailable"
-                    });
-                    return;
-                }
-                
-                //Make sure OTP tokens are currently disabled
-                let row = result.rows[0];
-                if (!row.enabled) {
-                    res.status(401).send({
-                        "error": "otp.alreadyDisabled"
-                    });
-                    return;
-                }
-                
-                //Disable OTP key
-                await db.query("DELETE FROM otp WHERE userId=$1", [
-                    req.authUser.userId
-                ]);
-                await db.query("DELETE FROM otpBackup WHERE userId=$1", [
-                    req.authUser.userId
-                ]);
-                            
                 res.status(204).send();
             } catch (error) {
+                if (error.name === "DBusError") {
+                    switch (error.type) {
+                        case "com.vicr123.accounts.Error.TwoFactorDisabled":
+                            res.status(401).send({
+                                "error": "otp.alreadyDisabled"
+                            });
+                            return;
+                    }
+                }
+
                 //Internal Server Error
                 winston.log("error", error.message);
                 res.status(500).send();
@@ -897,40 +664,34 @@ router.route("/otp/regenerate")
         } else {
             try {
                 //Ensure the password is correct
-                let isPasswordCorrect = await verifyPassword(req.authUser.userId, req.body.password);
+                let isPasswordCorrect = await verifyPassword(req.authUserDbus, req.body.password);
                 if (isPasswordCorrect !== "ok") {
                     res.status(401).send();
                     return;
                 }
-                
-                //Ensure there is a valid OTP token for this user
-                let result = await db.query("SELECT otpKey, enabled FROM otp WHERE userId=$1", [
-                    req.authUser.userId
-                ]);
-                if (result.rowCount === 0) {
-                    res.status(401).send({
-                        "error": "otp.unavailable"
-                    });
-                    return;
-                }
-                
-                //Make sure OTP tokens are currently enabled
-                let row = result.rows[0];
-                if (!row.enabled) {
-                    res.status(401).send({
-                        "error": "otp.alreadyDisabled"
-                    });
-                    return;
-                }
-                
-                //Generate some backup codes
-                let backupCodes = await generateBackupOtpForUser(req.authUser.userId);
+
+                let interface = req.authUserDbus.getInterface("com.vicr123.accounts.TwoFactor");
+                let properties = req.authUserDbus.getInterface("org.freedesktop.DBus.Properties");
+                await interface.RegenerateBackupKeys();
                 
                 res.status(200).send({
                     "status": "ok",
-                    "backup": backupCodes
+                    "backup": (await properties.Get("com.vicr123.accounts.TwoFactor", "BackupKeys")).value.map(keys => ({
+                        code: keys[0],
+                        used: keys[1]
+                    }))
                 });
             } catch (error) {
+                if (error.name === "DBusError") {
+                    switch (error.type) {
+                        case "com.vicr123.accounts.Error.TwoFactorDisabled":
+                            res.status(401).send({
+                                "error": "otp.alreadyDisabled"
+                            });
+                            return;
+                    }
+                }
+
                 //Internal Server Error
                 winston.log("error", error.message);
                 res.status(500).send();

@@ -7,7 +7,8 @@ const ApplicationWebSocketsErrors = {
     UnknownApplication: 4001,
     BadVersion: 4002,
     TermsUpdateRequired: 4003,
-    AccountSuspended: 4004
+    AccountSuspended: 4004,
+    TermsAcceptanceRequired: 4005
 }
 
 let openSockets = [];
@@ -53,6 +54,12 @@ class Play {
             }
             
             //Make sure the user has read the terms
+            if (row.termsRead === "new") {
+                //Not yet read the terms
+                ws.close(ApplicationWebSocketsErrors.TermsAcceptanceRequired);
+                return;
+            }
+
             if (!row.termsRead) {
                 //Not yet read the terms
                 ws.close(ApplicationWebSocketsErrors.TermsUpdateRequired);

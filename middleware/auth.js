@@ -1,4 +1,5 @@
 const db = require('../db');
+const accounts = require('../accounts-dbus');
 
 module.exports = async (req, res, next) => {
     let authHeader = req.get("Authorization");
@@ -8,10 +9,21 @@ module.exports = async (req, res, next) => {
         req.token = token;
         
         //Check the token
-        let row = await db.userForToken(token);
-        if (row) {
-            req.authUser = row;
+        try {
+            let userPath = await accounts.manager().UserForToken(token);
+            let user = await accounts.path(userPath);
+            let userProperties = user.getInterface("org.freedesktop.DBus.Properties");
+
+            req.authUser = {
+                username: (await userProperties.Get("com.vicr123.accounts.User", "Username")).value,
+                email: (await userProperties.Get("com.vicr123.accounts.User", "Email")).value,
+                verified: (await userProperties.Get("com.vicr123.accounts.User", "Verified")).value,
+                userId: Number((await userProperties.Get("com.vicr123.accounts.User", "Id")).value),
+            }
             req.authUserToken = token;
+            req.authUserDbus = user;
+        } catch {
+
         }
     }
     
