@@ -40,7 +40,14 @@ class Database {
         //Check that all the tables that we need are created
         let client;
         try {
-            client = await pool.connect();
+            while (!client) {
+                try {
+                    client = await pool.connect();
+                } catch {
+                    winston.log("error", "Could not connect to database, trying again in 5 seconds");
+                    await new Promise((res, rej) => setTimeout(res, 5000));
+                }
+            }
 
             let tables = await client.query(`SELECT table_name
                                                 FROM information_schema.tables
