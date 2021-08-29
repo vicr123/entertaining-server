@@ -1,0 +1,37 @@
+version: "3"
+services:
+    pg-accounts:
+        image: postgres:13
+        restart: always
+        environment:
+            POSTGRES_PASSWORD: secret123
+            POSTGRES_USER: accounts
+    accounts:
+        image: ghcr.io/vicr123/vicr123-accounts:master
+        depends_on: [pg-accounts]
+        restart: always
+        environment:
+            ACCOUNTS_DB_HOSTNAME: pg-accounts
+            ACCOUNTS_DB_USERNAME: accounts
+            ACCOUNTS_DB_DATABASE: accounts
+            ACCOUNTS_DB_PASSWORD: secret123
+        volumes:
+            - "/var/entertaining/vicr123-accounts:/var/vicr123-accounts"
+    pg-entertaining:
+        image: postgres:13
+        restart: always
+        environment:
+            POSTGRES_PASSWORD: secret123
+            POSTGRES_USER: entertaining
+    entertaining:
+        build: ../
+        depends_on: [accounts, pg-entertaining]
+        environment:
+            DATABASE_HOST: pg-entertaining
+            DATABASE_USERNAME: entertaining
+            DATABASE_PASSWORD: secret123
+            DATABASE_DATABASE: entertaining
+        volumes:
+            - "/var/entertaining/vicr123-accounts:/var/vicr123-accounts"
+        ports:
+            - 3000
