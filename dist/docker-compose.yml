@@ -6,6 +6,7 @@ services:
         environment:
             POSTGRES_PASSWORD: secret123
             POSTGRES_USER: accounts
+            POSTGRES_HOST_AUTH_METHOD: md5
     accounts:
         image: ghcr.io/vicr123/vicr123-accounts:master
         depends_on: [pg-accounts]

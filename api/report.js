@@ -17,7 +17,7 @@ function report(req, res) {
             return;
         }
     
-        let baseFilename = `${nconf.get("reportsLocation")}/${(new Date().getTime()).toString()}-${req.authUser.username}`;
+        let baseFilename = `${nconf.any("reportsLocation", "reportslocation")}/${(new Date().getTime()).toString()}-${req.authUser.username}`;
     
         fs.writeFile(`${baseFilename}.json`, JSON.stringify({
             "reason": report.reason
@@ -38,7 +38,7 @@ function report(req, res) {
 }
 
 report.init = () => {
-    fs.mkdir(nconf.get("reportsLocation"), {
+    fs.mkdir(nconf.get("reportsLocation", "reportslocation"), {
         recursive: true
     }, () => { });
 }
