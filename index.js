@@ -36,7 +36,13 @@ function initConfiguration() {
     winston.log("verbose", "Loading application configuration...");
     
     nconf.argv();
-    nconf.env();
+    nconf.env({
+        transform: val => {
+            val.key = val.key.toLowerCase();
+            val.key = val.key.replace("_", ":");
+            return val;
+        }
+    });
     nconf.file("./config.json");
     nconf.defaults({
         "port": 3000,
